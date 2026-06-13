@@ -1,7 +1,7 @@
 // Snatched XI — LobbyDO: Real-time 1v1 football draft game
 // All game state lives here, server-side, inside a Durable Object.
 
-/// <reference types="@cloudflare/workers-types" />
+import { DurableObject } from 'cloudflare:workers';
 
 import {
   ClientMessage, ServerMessage,

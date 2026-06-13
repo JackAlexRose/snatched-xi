@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snatched XI</title>
+<style>
+  :root {
+    --bg: #262626;
+    --bg2: #1a1a1a;
+    --fg: #c4c4c4;
+    --fg2: #888;
+    --red: #e9393f;
+    --border: #444;
+    --green: #2ecc71;
+    --gold: #f1c40f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Departure Mono', 'Courier New', monospace;
+    background: var(--bg); color: var(--fg);
+    min-height: 100vh;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+  .hidden { display: none !important; }
+
+  /* ── Header ── */
+  header { 
+    border-bottom: 1px solid var(--border); padding: 16px 0;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px;
+  }
+  header h1 { color: var(--red); font-size: 1.5rem; }
+  .phase-badge { 
+    background: var(--bg2); color: var(--fg2); padding: 4px 12px;
+    border: 1px solid var(--border); font-size: 0.8rem;
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── Lobby ── */
+  .lobby-actions { text-align: center; padding: 40px 0; }
+  .lobby-actions button { 
+    background: var(--red); color: #fff; border: none;
+    padding: 12px 32px; font-family: inherit; font-size: 1rem;
+    cursor: pointer; margin: 8px;
+  }
+  .lobby-actions button:hover { opacity: 0.9; }
+  .lobby-link { 
+    margin-top: 20px; padding: 16px; background: var(--bg2);
+    border: 1px solid var(--border); text-align: left;
+  }
+  .lobby-link a { color: var(--red); word-break: break-all; }
+  .waiting { color: var(--fg2); margin-top: 12px; font-style: italic; }
+  .join-form input { 
+    background: var(--bg2); color: var(--fg); border: 1px solid var(--border);
+    padding: 10px 16px; font-family: inherit; width: 200px; margin-right: 8px;
+  }
+
+  /* ── Blueprint ── */
+  .formation-grid { 
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin: 20px 0; max-width: 500px;
+  }
+  .formation-btn { 
+    background: var(--bg2); color: var(--fg); border: 1px solid var(--border);
+    padding: 12px; font-family: inherit; cursor: pointer; text-align: center;
+    font-size: 0.9rem;
+  }
+  .formation-btn:hover { border-color: var(--red); }
+  .formation-btn.selected { 
+    background: var(--red); color: #fff; border-color: var(--red);
+  }
+  .formation-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .locked-msg { color: var(--green); margin-top: 16px; }
+
+  /* ── Draft ── */
+  .draft-layout { display: flex; gap: 20px; }
+  .draft-sidebar { 
+    flex: 0 0 280px; background: var(--bg2); border: 1px solid var(--border);
+    padding: 16px;
+  }
+  .draft-main { flex: 1; }
+
+  .wheel-result { 
+    padding: 12px; background: var(--bg2); border: 1px solid var(--gold);
+    margin-bottom: 16px; text-align: center;
+  }
+  .wheel-result .club { font-size: 1.2rem; color: var(--gold); }
+  .wheel-result .season { color: var(--fg2); font-size: 0.8rem; }
+
+  .squad-grid { 
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 6px; margin-bottom: 16px;
+  }
+  .player-card { 
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 8px 10px; cursor: pointer; transition: border-color 0.1s;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .player-card:hover { border-color: var(--red); }
+  .player-card.claimed { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+  .player-card.claimed-by-you { border-color: var(--green); opacity: 0.7; }
+  .player-card .p-name { font-size: 0.9rem; }
+  .player-card .p-pos { color: var(--fg2); font-size: 0.7rem; }
+  .player-card .p-ovr { color: var(--red); font-weight: bold; font-size: 0.8rem; }
+  .player-card .p-attrs { color: var(--fg2); font-size: 0.65rem; }
+
+  .timer-bar {
+    height: 4px; background: var(--border); margin-bottom: 12px;
+    border-radius: 2px; overflow: hidden;
+  }
+  .timer-fill {
+    height: 100%; background: var(--red); transition: width 0.1s linear;
+  }
+  .timer-text { text-align: center; font-size: 0.9rem; margin-bottom: 8px; }
+
+  /* ── Your Team ── */
+  .team-title { font-size: 0.8rem; color: var(--fg2); margin-bottom: 8px; }
+  .team-slot { 
+    padding: 4px 6px; border: 1px solid var(--border); margin-bottom: 4px;
+    font-size: 0.75rem; display: flex; justify-content: space-between;
+    background: var(--bg);
+  }
+  .team-slot.filled { background: var(--bg2); border-color: var(--green); }
+  .team-slot .slot-name { color: var(--fg2); }
+  .team-slot .slot-player { font-weight: bold; }
+  .team-slot .slot-ovr { color: var(--red); }
+
+  /* ── Match Result ── */
+  .result-score { 
+    text-align: center; font-size: 2.5rem; padding: 20px;
+    color: var(--gold);
+  }
+  .result-stats { 
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin: 20px 0; text-align: center;
+  }
+  .stat-box { 
+    background: var(--bg2); border: 1px solid var(--border); padding: 16px;
+  }
+  .stat-value { font-size: 1.5rem; color: var(--red); }
+  .stat-label { font-size: 0.7rem; color: var(--fg2); margin-top: 4px; }
+
+  .performer { 
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; margin-bottom: 4px; background: var(--bg2);
+    border: 1px solid var(--border);
+  }
+  .performer .rating { 
+    color: var(--gold); font-weight: bold; font-size: 1.1rem;
+  }
+
+  .winner-banner { 
+    text-align: center; padding: 24px; 
+    font-size: 1.5rem; color: var(--green);
+  }
+  .back-btn {
+    background: var(--bg2); color: var(--fg); border: 1px solid var(--border);
+    padding: 10px 24px; font-family: inherit; cursor: pointer; margin-top: 20px;
+    display: block; margin-left: auto; margin-right: auto;
+  }
+
+  /* ── Opponent Activity ── */
+  .opponent-claim { 
+    padding: 8px; background: var(--bg2); border: 1px solid var(--gold);
+    margin-bottom: 8px; font-size: 0.8rem; animation: fadeIn 0.3s;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    .draft-layout { flex-direction: column-reverse; }
+    .draft-sidebar { flex: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Snatched XI</h1>
+    <span class="phase-badge" id="phaseBadge">LOBBY</span>
+    <span id="connectionStatus" style="color:var(--fg2);font-size:0.8rem"></span>
+  </header>
+
+  <!-- ── LOBBY SCREEN ── -->
+  <section id="lobbyScreen" class="screen active">
+    <div class="lobby-actions">
+      <button onclick="createLobby()">Create Lobby</button>
+      <div class="join-form">
+        <input id="joinLobbyId" placeholder="Lobby ID">
+        <button onclick="joinLobby()">Join</button>
+      </div>
+      <div id="lobbyLink" class="lobby-link hidden">
+        <div>Share this link with your opponent:</div>
+        <a id="lobbyUrl" href="#" onclick="copyLink(event)">—</a>
+        <div class="waiting" id="waitingMsg"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── BLUEPRINT SCREEN ── -->
+  <section id="blueprintScreen" class="screen">
+    <h2>Choose Your Formation</h2>
+    <div class="formation-grid" id="formationGrid"></div>
+    <button id="lockFormation" disabled 
+      style="margin-top:16px;background:var(--red);color:#fff;border:none;padding:10px 24px;font-family:inherit;cursor:pointer;">
+      Lock In
+    </button>
+    <div class="locked-msg hidden" id="lockedMsg">Formation locked — waiting for opponent...</div>
+  </section>
+
+  <!-- ── DRAFT SCREEN ── -->
+  <section id="draftScreen" class="screen">
+    <div class="draft-layout">
+      <div class="draft-sidebar">
+        <div class="team-title">Your XI</div>
+        <div id="yourTeam"></div>
+      </div>
+      <div class="draft-main">
+        <div class="timer-bar"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+        <div class="timer-text" id="timerText">Round 1 — 10s</div>
+        <div id="opponentActivity"></div>
+        <div class="wheel-result hidden" id="wheelResult">
+          <div class="club" id="wheelClub"></div>
+          <div class="season" id="wheelSeason"></div>
+        </div>
+        <div class="squad-grid" id="squadGrid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RESULT SCREEN ── -->
+  <section id="resultScreen" class="screen">
+    <div id="resultContent"></div>
+    <button class="back-btn" onclick="location.reload()">Play Again</button>
+  </section>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// Snatched XI — Client
+// ═══════════════════════════════════════════
+
+const FORMATIONS = ['4-4-2', '4-3-3', '3-5-2', '4-2-3-1', '3-4-3', '5-3-2', '4-5-1'];
+let ws = null;
+let myPlayerId = null;
+let lobbyId = null;
+let selectedFormation = null;
+let draftTimer = null;
+let myTeam = [];    // [{slot, player|null}]
+let currentRound = 0;
+
+// ── WebSocket Connection ──
+
+function connect(lid, pid) {
+  myPlayerId = pid;
+  lobbyId = lid;
+  
+  // Client JS opens the WebSocket
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${location.host}/lobby/${lid}/ws?player=${pid}`;
+  
+  ws = new WebSocket(wsUrl);
+  ws.onopen = () => {
+    document.getElementById('connectionStatus').textContent = '● connected';
+    document.getElementById('connectionStatus').style.color = 'var(--green)';
+    ws.send(JSON.stringify({ type: 'join_lobby', playerName: pid === 'p1' ? 'Home' : 'Away' }));
+  };
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  ws.onclose = () => {
+    document.getElementById('connectionStatus').textContent = '● disconnected';
+    document.getElementById('connectionStatus').style.color = 'var(--red)';
+  };
+  ws.onerror = () => {
+    document.getElementById('connectionStatus').textContent = '● error';
+    document.getElementById('connectionStatus').style.color = 'var(--red)';
+  };
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'lobby_state':
+      handleLobbyState(msg);
+      break;
+    case 'blueprint_reveal':
+      handleBlueprintReveal(msg);
+      break;
+    case 'wheel_spin':
+      handleWheelSpin(msg);
+      break;
+    case 'squad_board':
+      handleSquadBoard(msg);
+      break;
+    case 'player_claimed':
+      handlePlayerClaimed(msg);
+      break;
+    case 'draft_complete':
+      handleDraftComplete(msg);
+      break;
+    case 'match_result':
+      handleMatchResult(msg);
+      break;
+    case 'error':
+      console.error('Server error:', msg.message);
+      break;
+  }
+}
+
+// ── Lobby ──
+
+async function createLobby() {
+  const res = await fetch('/api/lobby/create', { method: 'POST' });
+  const data = await res.json();
+  lobbyId = data.lobbyId;
+  
+  document.getElementById('lobbyLink').classList.remove('hidden');
+  const url = `${location.origin}/?lobby=${lobbyId}`;
+  document.getElementById('lobbyUrl').href = url;
+  document.getElementById('lobbyUrl').textContent = url;
+  document.getElementById('waitingMsg').textContent = 'Waiting for opponent to join...';
+  
+  connect(lobbyId, 'p1');
+}
+
+function joinLobby() {
+  const id = document.getElementById('joinLobbyId').value.trim();
+  if (!id) return;
+  // Redirect to clean URL — the page will reload and auto-connect
+  location.href = `/?lobby=${id}`;
+}
+
+function copyLink(e) {
+  e.preventDefault();
+  navigator.clipboard.writeText(document.getElementById('lobbyUrl').textContent);
+}
+
+// ── Screen Switching ──
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('phaseBadge').textContent = id.replace('Screen', '').toUpperCase();
+}
+
+// ── Lobby State ──
+
+function handleLobbyState(msg) {
+  if (msg.phase === 'BLUEPRINT') {
+    showScreen('blueprintScreen');
+    renderFormationGrid();
+  } else if (msg.phase === 'DRAFT') {
+    showScreen('draftScreen');
+    if (msg.yourTeam) myTeam = msg.yourTeam;
+    renderYourTeam();
+  } else if (msg.phase === 'OVER' && msg.matchResult) {
+    showScreen('resultScreen');
+    renderResult(msg.matchResult);
+  }
+}
+
+// ── Blueprint ──
+
+function renderFormationGrid() {
+  const grid = document.getElementById('formationGrid');
+  grid.innerHTML = FORMATIONS.map(f => 
+    `<button class="formation-btn" data-formation="${f}" onclick="selectFormation('${f}')">${f}</button>`
+  ).join('');
+}
+
+function selectFormation(f) {
+  selectedFormation = f;
+  document.querySelectorAll('.formation-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.formation === f);
+  });
+  document.getElementById('lockFormation').disabled = false;
+}
+
+document.getElementById('lockFormation').addEventListener('click', () => {
+  if (!selectedFormation) return;
+  ws.send(JSON.stringify({ type: 'submit_blueprint', formation: selectedFormation }));
+  document.getElementById('lockFormation').disabled = true;
+  document.getElementById('lockedMsg').classList.remove('hidden');
+  document.querySelectorAll('.formation-btn').forEach(b => b.disabled = true);
+});
+
+function handleBlueprintReveal(msg) {
+  // Blueprint phase is over, wait for draft to start
+  document.getElementById('phaseBadge').textContent = 'DRAFT STARTING...';
+}
+
+// ── Draft ──
+
+function handleWheelSpin(msg) {
+  document.getElementById('wheelResult').classList.remove('hidden');
+  document.getElementById('wheelClub').textContent = msg.club;
+  document.getElementById('wheelSeason').textContent = msg.season;
+  document.getElementById('opponentActivity').innerHTML = '';
+}
+
+function handleSquadBoard(msg) {
+  currentRound = msg.round;
+  document.getElementById('timerText').textContent = `Round ${msg.round} — ${msg.timerSeconds}s`;
+  
+  const grid = document.getElementById('squadGrid');
+  grid.innerHTML = msg.players.map(p => {
+    const attrs = [p.pace, p.shooting, p.passing, p.dribbling, p.defending, p.physicality]
+      .map(v => v ?? '?').join('/');
+    return `
+      <div class="player-card" data-player-id="${p.id}" onclick="pickPlayer('${p.id}')">
+        <div class="p-name">${p.name}</div>
+        <div class="p-pos">${p.positions.join(', ')}</div>
+        <div class="p-ovr">OVR ${p.overall}</div>
+        <div class="p-attrs">${attrs}</div>
+      </div>`;
+  }).join('');
+  
+  // Start timer animation
+  startDraftTimer(msg.timerSeconds);
+}
+
+function startDraftTimer(seconds) {
+  clearInterval(draftTimer);
+  const fill = document.getElementById('timerFill');
+  const text = document.getElementById('timerText');
+  const endTime = Date.now() + seconds * 1000;
+  
+  draftTimer = setInterval(() => {
+    const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    const pct = (remaining / seconds) * 100;
+    fill.style.width = pct + '%';
+    text.textContent = `Round ${currentRound} — ${remaining}s`;
+    
+    if (pct < 30) fill.style.background = 'var(--gold)';
+    if (remaining <= 0) clearInterval(draftTimer);
+  }, 100);
+}
+
+function pickPlayer(playerId) {
+  ws.send(JSON.stringify({ type: 'draft_pick', playerId }));
+}
+
+function handlePlayerClaimed(msg) {
+  const card = document.querySelector(`[data-player-id="${msg.claimedPlayer.id}"]`);
+  
+  if (msg.playerId === myPlayerId) {
+    // I claimed it
+    if (card) {
+      card.classList.add('claimed-by-you');
+      card.textContent = 'YOURS ✓';
+    }
+  } else {
+    // Opponent claimed it
+    if (card) {
+      card.classList.add('claimed');
+      card.textContent = 'TAKEN';
+    }
+    
+    // Show opponent activity
+    document.getElementById('opponentActivity').innerHTML = `
+      <div class="opponent-claim">
+        Opponent picked <strong>${msg.claimedPlayer.name}</strong> (OVR ${msg.claimedPlayer.overall})
+      </div>`;
+    
+    setTimeout(() => {
+      const el = document.querySelector('.opponent-claim');
+      if (el) el.style.opacity = '0.5';
+    }, 3000);
+  }
+  
+  // Update my team display
+  if (msg.playerId === myPlayerId) {
+    myTeam.push(msg.claimedPlayer);
+    renderYourTeam();
+  }
+}
+
+function renderYourTeam() {
+  const el = document.getElementById('yourTeam');
+  if (!myTeam || myTeam.length === 0) {
+    // Show empty slots based on formation
+    el.innerHTML = 'Waiting for formation...';
+    return;
+  }
+  
+  el.innerHTML = myTeam.map(slot => {
+    if (slot.player) {
+      return `<div class="team-slot filled">
+        <span class="slot-name">${slot.slot || '?'}</span>
+        <span class="slot-player">${slot.player.name || slot.name}</span>
+        <span class="slot-ovr">${slot.player.overall || slot.overall}</span>
+      </div>`;
+    }
+    return `<div class="team-slot">
+      <span class="slot-name">${slot.slot || 'EMPTY'}</span>
+      <span class="slot-player">—</span>
+      <span class="slot-ovr">—</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Match Result ──
+
+function handleDraftComplete(msg) {
+  myTeam = msg.yourTeam;
+  renderYourTeam();
+  document.getElementById('timerFill').style.width = '0%';
+  document.getElementById('timerText').textContent = 'Simulating match...';
+  clearInterval(draftTimer);
+}
+
+function handleMatchResult(msg) {
+  showScreen('resultScreen');
+  renderResult(msg);
+}
+
+function renderResult(msg) {
+  const html = `
+    <div class="result-score">
+      ${msg.score.home} — ${msg.score.away}
+    </div>
+    <div class="winner-banner">
+      ${msg.winner === 'draw' ? 'It\'s a Draw!' : `${msg.winner === myPlayerId ? 'You Win!' : 'You Lose'}`}
+    </div>
+    <div class="result-stats">
+      <div class="stat-box">
+        <div class="stat-value">${msg.stats.possession}%</div>
+        <div class="stat-label">Possession</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${msg.stats.shotsOnTarget}</div>
+        <div class="stat-label">Shots on Target</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${msg.stats.totalShots}</div>
+        <div class="stat-label">Total Shots</div>
+      </div>
+    </div>
+    <h3 style="margin-top:24px;margin-bottom:12px;">Top Performers</h3>
+    ${msg.topPerformers.map(p => `
+      <div class="performer">
+        <span>${p.playerName}</span>
+        <span class="rating">${p.rating}</span>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('resultContent').innerHTML = html;
+  document.getElementById('phaseBadge').textContent = 'GAME OVER';
+}
+
+// ── Auto-connect from URL ──
+(function() {
+  const params = new URLSearchParams(location.search);
+  const lobby = params.get('lobby');
+  if (lobby) {
+    // Player 2 coming from a shared link — auto-connect
+    connect(lobby, 'p2');
+  }
+})();
+</script>
+</body>
+</html>

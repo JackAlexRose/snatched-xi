@@ -1,7 +1,9 @@
 // Snatched XI — Cloudflare Worker Entry Point
 // Routes: create lobby, join lobby, WebSocket upgrades
 
-/// <reference types="@cloudflare/workers-types" />
+import { DurableObjectNamespace, D1Database } from 'cloudflare:workers';
+
+import clientHTML from './client.html';
 
 export { LobbyDO } from './LobbyDO';
 
@@ -57,20 +59,26 @@ export default {
       const lobbyId = wsMatch[1];
       const playerId = url.searchParams.get('player') || 'p1';
 
-      // Upgrade to WebSocket via the DO
-      const doId = env.LOBBY.idFromName(lobbyId);
-      const stub = env.LOBBY.get(doId);
+      // Only upgrade if the client is actually requesting a WebSocket
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (upgradeHeader && upgradeHeader.toLowerCase() === 'websocket') {
+        // Forward to DO for actual WebSocket upgrade
+        const doId = env.LOBBY.idFromName(lobbyId);
+        const stub = env.LOBBY.get(doId);
 
-      const wsUrl = new URL(request.url);
-      wsUrl.pathname = '/ws';
-      wsUrl.searchParams.set('player', playerId);
+        const wsUrl = new URL(request.url);
+        wsUrl.pathname = '/ws';
+        wsUrl.searchParams.set('player', playerId);
 
-      // Forward the upgrade request to the DO
-      return stub.fetch(new Request(wsUrl.toString(), {
-        headers: {
-          'Upgrade': 'websocket',
-        },
-      }));
+        return stub.fetch(new Request(wsUrl.toString(), {
+          headers: { 'Upgrade': 'websocket' },
+        }));
+      }
+
+      // Regular browser request — serve the client so JS can open WS
+      return new Response(clientHTML, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+      });
     }
 
     // ── Lobby Status ──
@@ -88,7 +96,7 @@ export default {
 
     // ── Serve Client (in production, this would be static assets) ──
     if (path === '/' || path === '') {
-      return new Response(HTML_CLIENT, {
+      return new Response(clientHTML, {
         headers: { ...corsHeaders, 'Content-Type': 'text/html' },
       });
     }
@@ -97,66 +105,9 @@ export default {
   },
 };
 
-// ── Minimal MVP Client (served inline for now) ──
+// ── Type declarations for non-TS imports ──
 
-const HTML_CLIENT = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Snatched XI</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { 
-    font-family: 'Departure Mono', 'Courier New', monospace;
-    background: #262626; color: #c4c4c4; 
-    max-width: 800px; margin: 40px auto; padding: 20px;
-  }
-  h1 { color: #e9393f; margin-bottom: 8px; }
-  p { margin-bottom: 16px; color: #888; }
-  button {
-    background: #e9393f; color: #fff; border: none;
-    padding: 10px 20px; cursor: pointer; font-family: inherit;
-  }
-  button:hover { opacity: 0.9; }
-  input {
-    background: #1a1a1a; color: #c4c4c4; border: 1px solid #444;
-    padding: 8px 12px; font-family: inherit; width: 200px;
-  }
-  #status { margin-top: 16px; }
-  .lobby-link { margin-top: 16px; padding: 12px; background: #1a1a1a; border: 1px solid #444; }
-  .lobby-link a { color: #e9393f; }
-</style>
-</head>
-<body>
-<h1>Snatched XI</h1>
-<p>1v1 competitive football draft — coming soon</p>
-<div id="app">
-  <div id="create">
-    <button onclick="createLobby()">Create Lobby</button>
-    <div class="lobby-link" id="lobbyLink" style="display:none"></div>
-  </div>
-  <div id="join" style="margin-top:20px">
-    <input type="text" id="lobbyId" placeholder="Lobby ID">
-    <button onclick="joinLobby()">Join Lobby</button>
-  </div>
-  <div id="status"></div>
-</div>
-<script>
-async function createLobby() {
-  const res = await fetch('/api/lobby/create', { method: 'POST' });
-  const data = await res.json();
-  document.getElementById('lobbyLink').style.display = 'block';
-  document.getElementById('lobbyLink').innerHTML = 
-    'Share this link: <a href="/lobby/' + data.lobbyId + '/ws?player=p1">' + 
-    window.location.origin + '/lobby/' + data.lobbyId + '/ws?player=p1</a>';
-  document.getElementById('status').textContent = 'Lobby created! Waiting for opponent...';
+declare module '*.html' {
+  const content: string;
+  export default content;
 }
-async function joinLobby() {
-  const id = document.getElementById('lobbyId').value.trim();
-  if (!id) return;
-  window.location.href = '/lobby/' + id + '/ws?player=p2';
-}
-</script>
-</body>
-</html>`;
