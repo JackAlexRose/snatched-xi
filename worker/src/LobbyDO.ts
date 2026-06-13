@@ -14,7 +14,7 @@ import { simulateMatch, SimulationResult } from './simulation';
 
 const MAX_PLAYERS = 2;
 const DRAFT_ROUNDS = 11;
-const DRAFT_TIMER_SECONDS = 10;
+const DRAFT_TIMER_SECONDS = 30;
 const DISCONNECT_GRACE_SECONDS = 120;
 const VALID_FORMATIONS = Object.keys(FORMATION_SLOTS);
 
@@ -204,18 +204,47 @@ export class LobbyDO extends DurableObject {
   // ── Alarm Handler (timers + disconnect cleanup) ──
   
   async alarm(): Promise<void> {
-    const currentAlarm = await this.ctx.storage.getAlarm();
-    
-    // Draft timer expired
-    if (this.state.phase === 'DRAFT' && this.state.currentRound > 0) {
-      await this.resolveExpiredTimer();
-    }
-    
-    // Disconnect grace period expired
+    // Check if both players disconnected (grace period expired)
     const allDisconnected = Array.from(this.state.players.values())
       .every(p => !p.connected);
     if (allDisconnected) {
       await this.cleanup();
+      return;
+    }
+    
+    // ── Wheel Spin Sequence ──
+    if (this.state.phase === 'DRAFT' && this.state.currentClubName) {
+      if (this.alarmPhase === 'spin_reveal') {
+        // Reveal the club/season, then set alarm for squad reveal (5s think time)
+        this.broadcast({
+          type: 'wheel_spin_result',
+          club: this.state.currentClubName!,
+          season: this.state.currentSeason!,
+          round: this.state.currentRound,
+          thinkSeconds: 5,
+        });
+        this.alarmPhase = 'show_squad';
+        await this.ctx.storage.setAlarm(Date.now() + 5000);
+        return;
+      }
+      
+      if (this.alarmPhase === 'show_squad') {
+        // Show the squad board + start draft timer
+        this.broadcast({
+          type: 'squad_board',
+          players: this.state.currentSquad,
+          round: this.state.currentRound,
+          timerSeconds: DRAFT_TIMER_SECONDS,
+        });
+        this.alarmPhase = 'draft_timer';
+        await this.ctx.storage.setAlarm(Date.now() + DRAFT_TIMER_SECONDS * 1000);
+        return;
+      }
+      
+      if (this.alarmPhase === 'draft_timer') {
+        // Timer expired — auto-assign
+        await this.resolveExpiredTimer();
+      }
     }
   }
   
@@ -332,6 +361,9 @@ export class LobbyDO extends DurableObject {
     this.state.claimedPlayers = new Map();
     this.state.roundComplete = new Set();
     
+    // Start the wheel spin alarm sequence
+    this.alarmPhase = 'spin_reveal';
+    
     // Fetch squad for this club-season
     const squadResult = await db.prepare(
       'SELECT id, name, positions, overall, pace, shooting, passing, dribbling, defending, physicality FROM players WHERE club = ? AND season = ?'
@@ -344,25 +376,20 @@ export class LobbyDO extends DurableObject {
     
     await this.saveState();
     
-    // Broadcast wheel spin
+    // ── Wheel Spin Sequence ──
+    // Phase 1: Start spinning (client animates)
     this.broadcast({
-      type: 'wheel_spin',
-      club: result.club,
-      season: result.season,
-    });
-    
-    // Broadcast squad board
-    this.broadcast({
-      type: 'squad_board',
-      players: this.state.currentSquad,
+      type: 'wheel_spin_start',
       round: this.state.currentRound,
-      timerSeconds: DRAFT_TIMER_SECONDS,
     });
     
-    // Set 10-second timer alarm
-    await this.ctx.storage.setAlarm(Date.now() + DRAFT_TIMER_SECONDS * 1000);
+    // Set alarm for the reveal (2 seconds of spinning)
+    await this.ctx.storage.setAlarm(Date.now() + 2000);
   }
   
+  // Track what the alarm is for (since DO alarms can only have one pending)
+  private alarmPhase: 'spin_reveal' | 'show_squad' | 'draft_timer' | 'disconnect' = 'draft_timer';
+
   private async handleDraftPick(ws: WebSocket, playerId: string, pickedPlayerId: string): Promise<void> {
     if (this.state.phase !== 'DRAFT') {
       this.sendError(ws, 'Not in draft phase', 'WRONG_PHASE');
@@ -588,16 +615,26 @@ export class LobbyDO extends DurableObject {
     this.state.phase = 'OVER';
     await this.saveState();
     
+    // Split player ratings into home/away teams
+    const homeTeamRatings = result.topPerformers.filter(
+      p => homeTeam.some(hp => hp.id === p.playerId)
+    );
+    const awayTeamRatings = result.topPerformers.filter(
+      p => awayTeam.some(ap => ap.id === p.playerId)
+    );
+    
     // Broadcast result
     this.broadcast({
       type: 'match_result',
       score: result.score,
       stats: {
-        possession: result.possession,
-        shotsOnTarget: result.shotsOnTarget.home + result.shotsOnTarget.away,
-        totalShots: result.totalShots.home + result.totalShots.away,
+        possession: { home: result.possession, away: 100 - result.possession },
+        shotsOnTarget: result.shotsOnTarget,
+        totalShots: result.totalShots,
       },
       topPerformers: result.topPerformers,
+      homeTeam: homeTeamRatings,
+      awayTeam: awayTeamRatings,
       winner: result.score.home > result.score.away ? 'p1' 
         : result.score.away > result.score.home ? 'p2' : 'draw',
     });

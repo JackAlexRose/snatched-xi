@@ -247,6 +247,15 @@
 // ═══════════════════════════════════════════
 
 const FORMATIONS = ['4-4-2', '4-3-3', '3-5-2', '4-2-3-1', '3-4-3', '5-3-2', '4-5-1'];
+const FORMATION_SLOTS = {
+  '4-4-2':   ['GK', 'LB', 'CB', 'CB', 'RB', 'LM', 'CM', 'CM', 'RM', 'ST', 'ST'],
+  '4-3-3':   ['GK', 'LB', 'CB', 'CB', 'RB', 'CM', 'CM', 'CM', 'LW', 'ST', 'RW'],
+  '3-5-2':   ['GK', 'CB', 'CB', 'CB', 'LWB', 'CM', 'CM', 'CM', 'RWB', 'ST', 'ST'],
+  '4-2-3-1': ['GK', 'LB', 'CB', 'CB', 'RB', 'CDM', 'CDM', 'CAM', 'LM', 'RM', 'ST'],
+  '3-4-3':   ['GK', 'CB', 'CB', 'CB', 'LM', 'CM', 'CM', 'RM', 'LW', 'ST', 'RW'],
+  '5-3-2':   ['GK', 'LWB', 'CB', 'CB', 'CB', 'RWB', 'CM', 'CM', 'CM', 'ST', 'ST'],
+  '4-5-1':   ['GK', 'LB', 'CB', 'CB', 'RB', 'LM', 'CM', 'CM', 'CM', 'RM', 'ST'],
+};
 let ws = null;
 let myPlayerId = null;
 let lobbyId = null;
@@ -290,7 +299,14 @@ function handleMessage(msg) {
     case 'blueprint_reveal':
       handleBlueprintReveal(msg);
       break;
+    case 'wheel_spin_start':
+      handleWheelSpinStart(msg);
+      break;
+    case 'wheel_spin_result':
+      handleWheelSpinResult(msg);
+      break;
     case 'wheel_spin':
+      // Legacy — handled by wheel_spin_result now
       handleWheelSpin(msg);
       break;
     case 'squad_board':
@@ -307,6 +323,8 @@ function handleMessage(msg) {
       break;
     case 'error':
       console.error('Server error:', msg.message);
+      document.getElementById('opponentActivity').innerHTML = 
+        `<div class="opponent-claim" style="border-color:var(--red);color:var(--red)">Error: ${msg.message}</div>`;
       break;
   }
 }
@@ -389,13 +407,71 @@ document.getElementById('lockFormation').addEventListener('click', () => {
 });
 
 function handleBlueprintReveal(msg) {
-  // Blueprint phase is over, wait for draft to start
+  // Switch to draft screen — wheel spin + squad board are about to arrive
+  showScreen('draftScreen');
   document.getElementById('phaseBadge').textContent = 'DRAFT STARTING...';
+  
+  // Initialize team slots from formation
+  const slots = FORMATION_SLOTS[msg.yourFormation] || [];
+  myTeam = slots.map(s => ({ slot: s, player: null }));
+  renderYourTeam();
 }
 
 // ── Draft ──
 
+let spinInterval = null;
+
+function handleWheelSpinStart(msg) {
+  document.getElementById('wheelResult').classList.remove('hidden');
+  document.getElementById('wheelClub').textContent = 'Spinning...';
+  document.getElementById('wheelSeason').textContent = '';
+  document.getElementById('wheelResult').style.borderColor = 'var(--gold)';
+  document.getElementById('wheelClub').style.color = 'var(--fg2)';
+  
+  // Animate — flash through fake club names
+  const fakeClubs = [
+    'Manchester United', 'Liverpool', 'Chelsea', 'Arsenal', 'Man City',
+    'Tottenham', 'Leicester City', 'Everton', 'West Ham', 'Newcastle',
+    'Aston Villa', 'Leeds United', 'Southampton', 'Wolves', 'Crystal Palace',
+  ];
+  let i = 0;
+  spinInterval = setInterval(() => {
+    document.getElementById('wheelClub').textContent = fakeClubs[i % fakeClubs.length];
+    document.getElementById('wheelSeason').textContent = 
+      ['2014-15','2015-16','2016-17','2017-18','2018-19','2019-20','2020-21','2021-22','2022-23'][Math.floor(Math.random() * 9)];
+    i++;
+  }, 80);
+  
+  document.getElementById('opponentActivity').innerHTML = '';
+  document.getElementById('squadGrid').innerHTML = '';
+  document.getElementById('timerFill').style.width = '100%';
+  document.getElementById('timerText').textContent = `Round ${msg.round} — Wheel spinning...`;
+}
+
+function handleWheelSpinResult(msg) {
+  clearInterval(spinInterval);
+  
+  document.getElementById('wheelResult').style.borderColor = 'var(--red)';
+  document.getElementById('wheelClub').textContent = msg.club;
+  document.getElementById('wheelClub').style.color = 'var(--red)';
+  document.getElementById('wheelSeason').textContent = msg.season;
+  
+  // Show countdown to squad reveal
+  document.getElementById('timerText').textContent = `Round ${msg.round} — Squad reveal in ${msg.thinkSeconds}s...`;
+  let remaining = msg.thinkSeconds;
+  const fill = document.getElementById('timerFill');
+  
+  const countdown = setInterval(() => {
+    remaining--;
+    fill.style.width = (remaining / msg.thinkSeconds * 100) + '%';
+    document.getElementById('timerText').textContent = `Round ${msg.round} — Squad reveal in ${remaining}s...`;
+    if (remaining <= 0) clearInterval(countdown);
+  }, 1000);
+}
+
 function handleWheelSpin(msg) {
+  // Legacy handler — direct reveal (no animation)
+  clearInterval(spinInterval);
   document.getElementById('wheelResult').classList.remove('hidden');
   document.getElementById('wheelClub').textContent = msg.club;
   document.getElementById('wheelSeason').textContent = msg.season;
@@ -405,6 +481,8 @@ function handleWheelSpin(msg) {
 function handleSquadBoard(msg) {
   currentRound = msg.round;
   document.getElementById('timerText').textContent = `Round ${msg.round} — ${msg.timerSeconds}s`;
+  document.getElementById('wheelResult').style.borderColor = 'var(--border)';
+  document.getElementById('timerFill').style.width = '100%';
   
   const grid = document.getElementById('squadGrid');
   grid.innerHTML = msg.players.map(p => {
@@ -474,7 +552,14 @@ function handlePlayerClaimed(msg) {
   
   // Update my team display
   if (msg.playerId === myPlayerId) {
-    myTeam.push(msg.claimedPlayer);
+    // Fill the matching slot
+    const slotName = msg.claimedPlayer.slot;
+    for (const sl of myTeam) {
+      if (sl.slot === slotName && !sl.player) {
+        sl.player = msg.claimedPlayer;
+        break;
+      }
+    }
     renderYourTeam();
   }
 }
@@ -519,35 +604,77 @@ function handleMatchResult(msg) {
 }
 
 function renderResult(msg) {
+  const isHome = myPlayerId === 'p1';
+  const myScore = isHome ? msg.score.home : msg.score.away;
+  const oppScore = isHome ? msg.score.away : msg.score.home;
+  const myStats = isHome 
+    ? { poss: msg.stats.possession.home, sot: msg.stats.shotsOnTarget.home, shots: msg.stats.totalShots.home }
+    : { poss: msg.stats.possession.away, sot: msg.stats.shotsOnTarget.away, shots: msg.stats.totalShots.away };
+  const oppStats = isHome
+    ? { poss: msg.stats.possession.away, sot: msg.stats.shotsOnTarget.away, shots: msg.stats.totalShots.away }
+    : { poss: msg.stats.possession.home, sot: msg.stats.shotsOnTarget.home, shots: msg.stats.totalShots.home };
+  const myTeam = isHome ? msg.homeTeam : msg.awayTeam;
+  const oppTeam = isHome ? msg.awayTeam : msg.homeTeam;
+  
+  // Top 5 per team
+  const myTop5 = myTeam.slice(0, 5);
+  const oppTop5 = oppTeam.slice(0, 5);
+  
+  const playerRow = (p) => {
+    const pos = p.positions ? p.positions.slice(0,2).join('/') : '';
+    const g = p.goals ? ` ⚽${p.goals}` : '';
+    const a = p.assists ? ` 🅰${p.assists}` : '';
+    return `<div class="performer">
+      <span>${p.playerName} <span style="color:var(--fg2);font-size:0.7rem">${pos}</span>${g}${a}</span>
+      <span class="rating">${p.rating}</span>
+    </div>`;
+  };
+  
   const html = `
     <div class="result-score">
-      ${msg.score.home} — ${msg.score.away}
+      ${myScore} — ${oppScore}
     </div>
     <div class="winner-banner">
-      ${msg.winner === 'draw' ? 'It\'s a Draw!' : `${msg.winner === myPlayerId ? 'You Win!' : 'You Lose'}`}
+      ${msg.winner === 'draw' ? "It's a Draw!" : msg.winner === myPlayerId ? 'You Win!' : 'You Lose'}
     </div>
+    
+    <!-- Your Team -->
+    <h3 style="margin-top:24px;margin-bottom:8px;color:var(--green)">Your Team</h3>
     <div class="result-stats">
       <div class="stat-box">
-        <div class="stat-value">${msg.stats.possession}%</div>
+        <div class="stat-value">${myStats.poss}%</div>
         <div class="stat-label">Possession</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">${msg.stats.shotsOnTarget}</div>
+        <div class="stat-value">${myStats.sot}</div>
         <div class="stat-label">Shots on Target</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">${msg.stats.totalShots}</div>
+        <div class="stat-value">${myStats.shots}</div>
         <div class="stat-label">Total Shots</div>
       </div>
     </div>
-    <h3 style="margin-top:24px;margin-bottom:12px;">Top Performers</h3>
-    ${msg.topPerformers.map(p => `
-      <div class="performer">
-        <span>${p.playerName}</span>
-        <span class="rating">${p.rating}</span>
+    ${myTop5.map(playerRow).join('')}
+    
+    <!-- Opponent -->
+    <h3 style="margin-top:24px;margin-bottom:8px;color:var(--red)">Opponent</h3>
+    <div class="result-stats">
+      <div class="stat-box">
+        <div class="stat-value">${oppStats.poss}%</div>
+        <div class="stat-label">Possession</div>
       </div>
-    `).join('')}
+      <div class="stat-box">
+        <div class="stat-value">${oppStats.sot}</div>
+        <div class="stat-label">Shots on Target</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${oppStats.shots}</div>
+        <div class="stat-label">Total Shots</div>
+      </div>
+    </div>
+    ${oppTop5.map(playerRow).join('')}
   `;
+  
   document.getElementById('resultContent').innerHTML = html;
   document.getElementById('phaseBadge').textContent = 'GAME OVER';
 }

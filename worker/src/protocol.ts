@@ -43,6 +43,19 @@ export interface WheelSpinMessage {
   season: string;
 }
 
+export interface WheelSpinStartMessage {
+  type: 'wheel_spin_start';
+  round: number;
+}
+
+export interface WheelSpinResultMessage {
+  type: 'wheel_spin_result';
+  club: string;
+  season: string;
+  round: number;
+  thinkSeconds: number;
+}
+
 export interface SquadBoardMessage {
   type: 'squad_board';
   players: DraftablePlayer[];
@@ -73,11 +86,13 @@ export interface MatchResultMessage {
   type: 'match_result';
   score: { home: number; away: number };
   stats: {
-    possession: number;
-    shotsOnTarget: number;
-    totalShots: number;
+    possession: { home: number; away: number };
+    shotsOnTarget: { home: number; away: number };
+    totalShots: { home: number; away: number };
   };
   topPerformers: PlayerRating[];
+  homeTeam: PlayerRating[];
+  awayTeam: PlayerRating[];
   winner: string;  // playerId or 'draw'
 }
 
@@ -113,6 +128,7 @@ export interface PlayerSummary {
 export interface PlayerRating {
   playerId: string;
   playerName: string;
+  positions?: string[];
   rating: number;   // 0-10 match rating
   goals?: number;
   assists?: number;
@@ -129,6 +145,8 @@ export type ServerMessage =
   | LobbyStateMessage
   | BlueprintRevealMessage
   | WheelSpinMessage
+  | WheelSpinStartMessage
+  | WheelSpinResultMessage
   | SquadBoardMessage
   | PlayerClaimedMessage
   | TimerTickMessage

@@ -33,8 +33,7 @@ enabled = false
 persist = true
 head_sampling_rate = 1
 
-# Seed the database
-# wrangler d1 execute snatched-xi-db --file ../data/output/seed_fifa23.sql
+# Seed: wrangler d1 execute snatched-xi-db --remote --file ../data/output/seed_fifa23.sql
 
 [env.production]
 # Production overrides if needed

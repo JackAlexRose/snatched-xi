@@ -120,30 +120,39 @@ The game runs entirely inside a single `LobbyDO` (Durable Object). All state tra
 
 #### Phase 3: The Draft (11 Rounds)
 Each round:
-1. **Wheel Spin:** DO randomly selects a `club_season` from the database → broadcasts the club name + season to both clients. (e.g., "Leicester City — 2015-16")
-2. **Shared Board:** DO queries the full squad for that club-season from D1 → sends to both clients.
-3. **10-Second Timer:** DO sets a DO Alarm for 10 seconds. Players must pick ONE player from the squad.
-4. **Resolution:**
+1. **Wheel Spin Animation:** DO broadcasts `wheel_spin_start` — client animates a fruit-machine style spinner with club names flashing by. After 2 seconds, the spinner lands and `wheel_spin_result` reveals the chosen club + season.
+2. **Think Window:** 5-second pause before the squad is shown. Players recall the team's stars, plan their pick.
+3. **Shared Board:** DO queries the full squad for that club-season from D1 → sends `squad_board` to both clients.
+4. **30-Second Timer:** DO sets a DO Alarm for 30 seconds. Players must pick ONE player from the squad.
+5. **Resolution:**
    - First player to submit their pick claims that player. The claimed player is immediately removed from the pool.
    - The opponent sees the claim in real-time and must pick from the remaining players.
    - No coin-flips — speed wins. First-to-claim, not random.
-5. **Positional Locking:** Drafted players can only fill slots matching their real-world position. A ST goes to striker slot, a CB to center-back slot. The client enforces this; the server validates it.
-6. After 11 rounds, both players have a full XI in their chosen formation.
+6. **Positional Locking:** Drafted players can only fill slots matching their real-world position. A ST goes to striker slot, a CB to center-back slot. The client enforces this; the server validates it.
+7. After 11 rounds, both players have a full XI in their chosen formation.
 
-**Timer Expiry:** If a player fails to pick within 10 seconds → auto-assigned a random player from the squad (preferring unfilled positions).
+**Timer Expiry:** If a player fails to pick within 30 seconds → auto-assigned a random player from the squad (preferring unfilled positions).
 
-**DO Alarm Usage:** One alarm per draft round (10-second countdown). On expiry, the DO resolves any missing picks.
+**DO Alarm Usage:** Three-phase alarm per draft round: spin reveal (2s) → squad reveal (5s) → draft timer (30s).
 
 #### Phase 4: Super Sunday (Simulation)
-- Best-of-3 series between the two drafted squads.
-- **Simulation Model (MVP):** Aggregate attribute comparison per positional matchup + formation modifier + tactical identity bonus.
-  - e.g., ST1 (Shooting 88, Pace 85) vs CB2 (Defending 78, Physicality 82) → weighted probability of goal.
-  - Possession: aggregate Passing + Dribbling vs opponent's aggregate Defending.
-  - Formation affects which positions are "active" in each phase.
-- **Intervention Windows:** Between matches, the DO pauses for a 30-second tactical window where either player can change their Tactical Identity.
-- Player fatigue does not carry between matches (MVP simplification).
+- Single match (MVP) between the two drafted squads.
+- **Simulation Engine v2:**
+  - **No home advantage** — both teams on equal footing.
+  - **Position-weighted team strength:** each player's attributes weighted by their slot (GK defending ×1.0, ST shooting ×1.0, CM passing ×1.0, etc.).
+  - **Formation matchup modifiers:** 7×7 matrix. Each formation pair has possession and attack bonuses (±2–8%). e.g., 4-3-3 vs 5-3-2 gets +8% possession but -5% attack.
+  - **Position-weighted shooting:** `pickShooter()` distributes chances by position weight (ST=5.0, CB=0.5). Your striker takes most shots, not your centre-back.
+  - **Assist system:** after each goal, `pickAssister()` selects an assister weighted by Passing attribute from remaining outfield players.
+  - **Dynamic match ratings:** ratings based on actual performance — defenders lose points for goals conceded, attackers gain for goals/assists, clean sheet bonuses, ghost game penalties. Position-specific modifiers.
+  - **Possession:** based on aggregate Passing + Dribbling, modified by formation matchup, clamped 25–75%.
+  - **Expected goals (xG):** based on team strength difference + formation attack modifier, with ±30% randomness.
+- **Post-MVP:** best-of-3 series, intervention windows, tactical identities.
 
-**Output:** After each match: score, possession %, shots on target, top 3 player ratings per side.
+**Output (results page):**
+- Scoreline + win/loss/draw banner
+- **Your Team** section: Possession, Shots on Target, Total Shots → top 5 rated players with positions, ratings, goals, assists
+- **Opponent** section: same stats + top 5
+- Both players see the same data, just flipped perspective
 
 **MVP Simplification:** Start with 1 match instead of best-of-3. Add the series format post-MVP.
 
@@ -254,7 +263,7 @@ snatched-xi/
 - [x] Lobby creation via shareable link (no matchmaking)
 - [x] WebSocket connection to LobbyDO
 - [x] Formation selection (4-4-2, 4-3-3, 3-5-2, 4-2-3-1, 3-4-3, 5-3-2, 4-5-1)
-- [x] 11-round draft with wheel spin + shared board + 10s timer
+- [x] 11-round draft with wheel spin animation + 5s think window + 30s timer
 - [x] First-to-claim draft resolution (no coin-flips, speed wins)
 - [x] Positional locking (player position → formation slot)
 - [x] Single match simulation (attribute-based, no tactics)
@@ -304,8 +313,10 @@ snatched-xi/
 | Project name | **Snatched XI** | Evocative — the draft format means players get "snatched" from squads |
 | Data start year | **2014-15** | FIFA 23 dataset coverage (FIFA 15 through FIFA 23). Real positions + attributes, no guessing. |
 | Formations | **7 formations** (4-4-2, 4-3-3, 3-5-2, 4-2-3-1, 3-4-3, 5-3-2, 4-5-1) | Covers most real-world shapes without overcomplicating slot logic |
-| Draft timer | **10 seconds** | Tight enough for tension, long enough to scan a 25-player squad |
+| Draft timer | **30 seconds** | Comfortable time to scan a squad, with 5s spin + 5s think window beforehand |
 | Disconnect grace | **2 minutes** | If both players drop, lobby holds 2 min then destroys |
+| Conflict resolution | **First-to-claim** | No coin-flips. Speed wins. Claimed players instantly removed from pool. |
 | Tactical Identity | **Deferred to v0.2** | Adds strategic depth but not needed for core draft loop validation |
 | Simulation format | **Single match** for MVP, best-of-3 for v0.2 | Validates the engine before building series logic |
 | Matchmaking | **Shareable link** for MVP, queue for v0.2 | Simplest path to two players in a lobby |
+| Simulation engine | **v2 dynamic** | No home advantage, position-weighted shooting, formation matchups, assists, dynamic ratings |
