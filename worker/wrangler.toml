@@ -1,0 +1,24 @@
+name = "snatched-xi"
+main = "src/index.ts"
+compatibility_date = "2026-06-13"
+
+# Durable Object for game lobbies
+[[durable_objects.bindings]]
+name = "LOBBY"
+class_name = "LobbyDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["LobbyDO"]
+
+# D1 database for player/squad data
+[[d1_databases]]
+binding = "DB"
+database_name = "snatched-xi-db"
+database_id = "PLACEHOLDER"  # Replace after `wrangler d1 create snatched-xi-db`
+
+# Seed the database
+# wrangler d1 execute snatched-xi-db --file ../data/output/seed_fifa23.sql
+
+[env.production]
+# Production overrides if needed

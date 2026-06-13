@@ -1,0 +1,20 @@
+# Data sources — large files not tracked in git
+data/sources/
+data/output/*.csv
+
+# Node
+worker/node_modules/
+worker/.wrangler/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / env
+.env
+.dev.vars
+*.secret
+
+# Build artifacts
+dist/
+.build/
