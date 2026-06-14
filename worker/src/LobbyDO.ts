@@ -172,7 +172,7 @@ export class LobbyDO extends DurableObject {
         await this.handleSubmitBlueprint(ws, playerId, msg.formation);
         break;
       case 'draft_pick':
-        await this.handleDraftPick(ws, playerId, msg.playerId);
+        await this.handleDraftPick(ws, playerId, msg.playerId, (msg as any).slot, (msg as any).slotIndex);
         break;
       default:
         this.sendError(ws, `Unknown message type: ${(msg as any).type}`, 'UNKNOWN_TYPE');
@@ -366,7 +366,7 @@ export class LobbyDO extends DurableObject {
     
     // Fetch squad for this club-season
     const squadResult = await db.prepare(
-      'SELECT id, name, positions, overall, pace, shooting, passing, dribbling, defending, physicality FROM players WHERE club = ? AND season = ?'
+      'SELECT id, name, positions, overall, pace, shooting, passing, dribbling, defending, physicality FROM players WHERE club = ? AND season = ? ORDER BY overall DESC LIMIT 25'
     ).bind(result.club, result.season).all<DraftablePlayer>();
     
     this.state.currentSquad = squadResult.results.map(p => ({
@@ -390,7 +390,7 @@ export class LobbyDO extends DurableObject {
   // Track what the alarm is for (since DO alarms can only have one pending)
   private alarmPhase: 'spin_reveal' | 'show_squad' | 'draft_timer' | 'disconnect' = 'draft_timer';
 
-  private async handleDraftPick(ws: WebSocket, playerId: string, pickedPlayerId: string): Promise<void> {
+  private async handleDraftPick(ws: WebSocket, playerId: string, pickedPlayerId: string, clientSlot?: string, clientSlotIndex?: number): Promise<void> {
     if (this.state.phase !== 'DRAFT') {
       this.sendError(ws, 'Not in draft phase', 'WRONG_PHASE');
       return;
@@ -436,10 +436,26 @@ export class LobbyDO extends DurableObject {
     this.state.claimedPlayers.set(playerId, pickedPlayerId);
     this.state.roundComplete.add(playerId);
 
-    // Assign player to slot
-    const slot = player.team.find(sl =>
-      sl.player === null && canPlayInSlot(pickedPlayer.positions, sl.slot)
-    )!;
+    // Assign player to slot — use exact index if provided, else match by name
+    let slot;
+    if (clientSlotIndex !== undefined && clientSlotIndex >= 0 && clientSlotIndex < player.team.length) {
+      const exactSlot = player.team[clientSlotIndex];
+      if (exactSlot.player === null && canPlayInSlot(pickedPlayer.positions, exactSlot.slot)) {
+        slot = exactSlot;
+      }
+    }
+    // Fallback: find first empty slot matching the slot name
+    if (!slot) {
+      slot = player.team.find(sl =>
+        sl.player === null && sl.slot === clientSlot && canPlayInSlot(pickedPlayer.positions, sl.slot)
+      );
+    }
+    // Fallback: auto-pick first matching slot
+    if (!slot) {
+      slot = player.team.find(sl =>
+        sl.player === null && canPlayInSlot(pickedPlayer.positions, sl.slot)
+      )!;
+    }
     
     const playerSummary: PlayerSummary = {
       id: pickedPlayer.id,

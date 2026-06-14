@@ -16,6 +16,8 @@ export interface SubmitBlueprintMessage {
 export interface DraftPickMessage {
   type: 'draft_pick';
   playerId: string;   // The selected player's DB id
+  slot?: string;       // Which formation slot to place them in (client-side choice)
+  slotIndex?: number;  // Exact index in the formationSlots array (for duplicate slots)
 }
 
 // ── Server → Client ──

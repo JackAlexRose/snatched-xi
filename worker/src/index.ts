@@ -3,8 +3,6 @@
 
 import { DurableObjectNamespace, D1Database } from 'cloudflare:workers';
 
-import clientHTML from './client.html';
-
 export { LobbyDO } from './LobbyDO';
 
 interface Env {
@@ -75,10 +73,9 @@ export default {
         }));
       }
 
-      // Regular browser request — serve the client so JS can open WS
-      return new Response(clientHTML, {
-        headers: { ...corsHeaders, 'Content-Type': 'text/html' },
-      });
+      // Regular browser request — redirect to Next.js client with lobby ID
+      const redirectUrl = `https://snatched-xi-client.jackalexanderrose.workers.dev/?lobby=${lobbyId}`;
+      return Response.redirect(redirectUrl, 302);
     }
 
     // ── Lobby Status ──
@@ -94,11 +91,9 @@ export default {
       });
     }
 
-    // ── Serve Client (in production, this would be static assets) ──
+    // ── Serve Client — redirect to Next.js app ──
     if (path === '/' || path === '') {
-      return new Response(clientHTML, {
-        headers: { ...corsHeaders, 'Content-Type': 'text/html' },
-      });
+      return Response.redirect('https://snatched-xi-client.jackalexanderrose.workers.dev', 302);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });

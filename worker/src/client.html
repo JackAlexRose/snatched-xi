@@ -119,17 +119,61 @@
   }
   .timer-text { text-align: center; font-size: 0.9rem; margin-bottom: 8px; }
 
-  /* ── Your Team ── */
-  .team-title { font-size: 0.8rem; color: var(--fg2); margin-bottom: 8px; }
-  .team-slot { 
-    padding: 4px 6px; border: 1px solid var(--border); margin-bottom: 4px;
-    font-size: 0.75rem; display: flex; justify-content: space-between;
-    background: var(--bg);
+  /* ── Pitch ── */
+  .draft-pitch-container { flex: 0 0 320px; }
+  .pitch-label { font-size: 0.8rem; color: var(--fg2); margin-bottom: 8px; text-align: center; }
+  .pitch {
+    position: relative; width: 300px; height: 440px;
+    background: linear-gradient(to bottom, #1a3a1a 0%, #1e441e 50%, #1a3a1a 100%);
+    border: 2px solid #555; border-radius: 4px;
+    overflow: hidden;
   }
-  .team-slot.filled { background: var(--bg2); border-color: var(--green); }
-  .team-slot .slot-name { color: var(--fg2); }
-  .team-slot .slot-player { font-weight: bold; }
-  .team-slot .slot-ovr { color: var(--red); }
+  .pitch::before {
+    content: ''; position: absolute; top: 50%; left: 5%; right: 5%;
+    border-top: 1px solid rgba(255,255,255,0.15);
+  }
+  .pitch::after {
+    content: ''; position: absolute; top: 5%; bottom: 5%; left: 50%;
+    border-left: 1px solid rgba(255,255,255,0.15);
+  }
+  .pitch .circle {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 80px; height: 80px; border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+  }
+  .pitch .penalty-box-top {
+    position: absolute; top: 5%; left: 15%; right: 15%; height: 18%;
+    border: 1px solid rgba(255,255,255,0.12); border-top: none;
+  }
+  .pitch .penalty-box-bottom {
+    position: absolute; bottom: 5%; left: 15%; right: 15%; height: 18%;
+    border: 1px solid rgba(255,255,255,0.12); border-bottom: none;
+  }
+  .pitch-slot {
+    position: absolute; transform: translate(-50%,-50%);
+    width: 52px; height: 36px;
+    border: 1px dashed var(--border);
+    font-size: 0.6rem; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s;
+    background: rgba(0,0,0,0.5); color: var(--fg2);
+    z-index: 2;
+  }
+  .pitch-slot:hover { border-color: var(--fg); }
+  .pitch-slot.filled { 
+    border-style: solid; border-color: var(--green);
+    background: rgba(46,204,113,0.1);
+  }
+  .pitch-slot.filled .ps-name { color: var(--fg); font-size: 0.6rem; }
+  .pitch-slot.filled .ps-ovr { color: var(--red); font-size: 0.55rem; }
+  .pitch-slot.valid-target { 
+    border-color: var(--gold); border-style: solid;
+    box-shadow: 0 0 8px rgba(241,196,15,0.4);
+    animation: pulse 1s infinite;
+  }
+  .pitch-slot.invalid-target { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 4px rgba(241,196,15,0.3); } 50% { box-shadow: 0 0 12px rgba(241,196,15,0.6); } }
+  .ps-slot-name { font-size: 0.5rem; color: var(--fg2); }
 
   /* ── Match Result ── */
   .result-score { 
@@ -217,9 +261,9 @@
   <!-- ── DRAFT SCREEN ── -->
   <section id="draftScreen" class="screen">
     <div class="draft-layout">
-      <div class="draft-sidebar">
-        <div class="team-title">Your XI</div>
-        <div id="yourTeam"></div>
+      <div class="draft-pitch-container">
+        <div class="pitch-label">Your XI</div>
+        <div class="pitch" id="pitch"></div>
       </div>
       <div class="draft-main">
         <div class="timer-bar"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
@@ -256,6 +300,16 @@ const FORMATION_SLOTS = {
   '5-3-2':   ['GK', 'LWB', 'CB', 'CB', 'CB', 'RWB', 'CM', 'CM', 'CM', 'ST', 'ST'],
   '4-5-1':   ['GK', 'LB', 'CB', 'CB', 'RB', 'LM', 'CM', 'CM', 'CM', 'RM', 'ST'],
 };
+// Slot positions on the pitch (x%, y%) for each formation
+const PITCH_SLOTS = {
+  '4-4-2':   { GK:{x:50,y:88}, LB:{x:10,y:70}, CB:{x:35,y:70}, CB2:{x:65,y:70}, RB:{x:90,y:70}, LM:{x:10,y:43}, CM:{x:35,y:43}, CM2:{x:65,y:43}, RM:{x:90,y:43}, ST:{x:40,y:15}, ST2:{x:60,y:15} },
+  '4-3-3':   { GK:{x:50,y:88}, LB:{x:10,y:70}, CB:{x:35,y:70}, CB2:{x:65,y:70}, RB:{x:90,y:70}, CM:{x:22,y:43}, CM2:{x:50,y:38}, CM3:{x:78,y:43}, LW:{x:15,y:15}, ST:{x:50,y:12}, RW:{x:85,y:15} },
+  '3-5-2':   { GK:{x:50,y:88}, CB:{x:22,y:70}, CB2:{x:50,y:70}, CB3:{x:78,y:70}, LWB:{x:8,y:50}, CM:{x:30,y:43}, CM2:{x:50,y:38}, CM3:{x:70,y:43}, RWB:{x:92,y:50}, ST:{x:40,y:15}, ST2:{x:60,y:15} },
+  '4-2-3-1': { GK:{x:50,y:88}, LB:{x:10,y:70}, CB:{x:35,y:70}, CB2:{x:65,y:70}, RB:{x:90,y:70}, CDM:{x:35,y:50}, CDM2:{x:65,y:50}, CAM:{x:50,y:35}, LM:{x:12,y:28}, RM:{x:88,y:28}, ST:{x:50,y:12} },
+  '3-4-3':   { GK:{x:50,y:88}, CB:{x:22,y:70}, CB2:{x:50,y:70}, CB3:{x:78,y:70}, LM:{x:8,y:55}, CM:{x:35,y:43}, CM2:{x:65,y:43}, RM:{x:92,y:55}, LW:{x:18,y:15}, ST:{x:50,y:12}, RW:{x:82,y:15} },
+  '5-3-2':   { GK:{x:50,y:88}, LWB:{x:8,y:52}, CB:{x:22,y:70}, CB2:{x:50,y:70}, CB3:{x:78,y:70}, RWB:{x:92,y:52}, CM:{x:28,y:38}, CM2:{x:50,y:33}, CM3:{x:72,y:38}, ST:{x:40,y:15}, ST2:{x:60,y:15} },
+  '4-5-1':   { GK:{x:50,y:88}, LB:{x:10,y:70}, CB:{x:35,y:70}, CB2:{x:65,y:70}, RB:{x:90,y:70}, LM:{x:8,y:45}, CM:{x:28,y:40}, CM2:{x:50,y:38}, CM3:{x:72,y:40}, RM:{x:92,y:45}, ST:{x:50,y:14} },
+};
 let ws = null;
 let myPlayerId = null;
 let lobbyId = null;
@@ -263,6 +317,7 @@ let selectedFormation = null;
 let draftTimer = null;
 let myTeam = [];    // [{slot, player|null}]
 let currentRound = 0;
+let selectedPlayerId = null;  // player card selected, waiting for slot click
 
 // ── WebSocket Connection ──
 
@@ -374,7 +429,7 @@ function handleLobbyState(msg) {
   } else if (msg.phase === 'DRAFT') {
     showScreen('draftScreen');
     if (msg.yourTeam) myTeam = msg.yourTeam;
-    renderYourTeam();
+    renderPitch();
   } else if (msg.phase === 'OVER' && msg.matchResult) {
     showScreen('resultScreen');
     renderResult(msg.matchResult);
@@ -407,14 +462,13 @@ document.getElementById('lockFormation').addEventListener('click', () => {
 });
 
 function handleBlueprintReveal(msg) {
-  // Switch to draft screen — wheel spin + squad board are about to arrive
   showScreen('draftScreen');
   document.getElementById('phaseBadge').textContent = 'DRAFT STARTING...';
   
-  // Initialize team slots from formation
   const slots = FORMATION_SLOTS[msg.yourFormation] || [];
   myTeam = slots.map(s => ({ slot: s, player: null }));
-  renderYourTeam();
+  selectedFormation = msg.yourFormation;
+  renderPitch();
 }
 
 // ── Draft ──
@@ -422,6 +476,10 @@ function handleBlueprintReveal(msg) {
 let spinInterval = null;
 
 function handleWheelSpinStart(msg) {
+  // Kill any running timers from the previous round
+  clearInterval(draftTimer);
+  clearInterval(spinInterval);
+  
   document.getElementById('wheelResult').classList.remove('hidden');
   document.getElementById('wheelClub').textContent = 'Spinning...';
   document.getElementById('wheelSeason').textContent = '';
@@ -497,6 +555,9 @@ function handleSquadBoard(msg) {
       </div>`;
   }).join('');
   
+  // Clear any pending selection from previous round
+  selectedPlayerId = null;
+  
   // Start timer animation
   startDraftTimer(msg.timerSeconds);
 }
@@ -519,7 +580,23 @@ function startDraftTimer(seconds) {
 }
 
 function pickPlayer(playerId) {
-  ws.send(JSON.stringify({ type: 'draft_pick', playerId }));
+  // Step 1: select the card, highlight valid pitch slots
+  selectedPlayerId = playerId;
+  
+  // Highlight the selected card
+  document.querySelectorAll('.player-card').forEach(c => c.style.outline = '');
+  const card = document.querySelector(`[data-player-id="${playerId}"]`);
+  if (card) card.style.outline = '2px solid var(--gold)';
+  
+  renderPitch();  // re-render with valid/invalid targets
+}
+
+function selectSlot(slotName) {
+  if (!selectedPlayerId) return;
+  
+  // Step 2: send the pick with the chosen slot
+  ws.send(JSON.stringify({ type: 'draft_pick', playerId: selectedPlayerId, slot: slotName }));
+  selectedPlayerId = null;
 }
 
 function handlePlayerClaimed(msg) {
@@ -531,28 +608,7 @@ function handlePlayerClaimed(msg) {
       card.classList.add('claimed-by-you');
       card.textContent = 'YOURS ✓';
     }
-  } else {
-    // Opponent claimed it
-    if (card) {
-      card.classList.add('claimed');
-      card.textContent = 'TAKEN';
-    }
-    
-    // Show opponent activity
-    document.getElementById('opponentActivity').innerHTML = `
-      <div class="opponent-claim">
-        Opponent picked <strong>${msg.claimedPlayer.name}</strong> (OVR ${msg.claimedPlayer.overall})
-      </div>`;
-    
-    setTimeout(() => {
-      const el = document.querySelector('.opponent-claim');
-      if (el) el.style.opacity = '0.5';
-    }, 3000);
-  }
-  
-  // Update my team display
-  if (msg.playerId === myPlayerId) {
-    // Fill the matching slot
+    // Fill the slot
     const slotName = msg.claimedPlayer.slot;
     for (const sl of myTeam) {
       if (sl.slot === slotName && !sl.player) {
@@ -560,39 +616,135 @@ function handlePlayerClaimed(msg) {
         break;
       }
     }
-    renderYourTeam();
+    selectedPlayerId = null;
+  } else {
+    // Opponent claimed it
+    if (card) {
+      card.classList.add('claimed');
+      card.textContent = 'TAKEN';
+    }
+    document.getElementById('opponentActivity').innerHTML = `
+      <div class="opponent-claim">
+        Opponent picked <strong>${msg.claimedPlayer.name}</strong> (OVR ${msg.claimedPlayer.overall})
+      </div>`;
+    setTimeout(() => {
+      const el = document.querySelector('.opponent-claim');
+      if (el) el.style.opacity = '0.5';
+    }, 3000);
   }
+  
+  renderPitch();
 }
 
-function renderYourTeam() {
-  const el = document.getElementById('yourTeam');
-  if (!myTeam || myTeam.length === 0) {
-    // Show empty slots based on formation
-    el.innerHTML = 'Waiting for formation...';
+function renderPitch() {
+  const pitch = document.getElementById('pitch');
+  if (!selectedFormation || !myTeam.length) {
+    pitch.innerHTML = '<div class="pitch"><div class="circle"></div></div>';
     return;
   }
   
-  el.innerHTML = myTeam.map(slot => {
-    if (slot.player) {
-      return `<div class="team-slot filled">
-        <span class="slot-name">${slot.slot || '?'}</span>
-        <span class="slot-player">${slot.player.name || slot.name}</span>
-        <span class="slot-ovr">${slot.player.overall || slot.overall}</span>
-      </div>`;
+  const slots = PITCH_SLOTS[selectedFormation] || {};
+  const formationSlots = FORMATION_SLOTS[selectedFormation] || [];
+  
+  // Get selected player's positions for slot validation
+  let selectedPositions = [];
+  if (selectedPlayerId) {
+    const card = document.querySelector(`[data-player-id="${selectedPlayerId}"]`);
+    if (card) {
+      const posText = card.querySelector('.p-pos')?.textContent || '';
+      selectedPositions = posText.split(',').map(s => s.trim().toUpperCase());
     }
-    return `<div class="team-slot">
-      <span class="slot-name">${slot.slot || 'EMPTY'}</span>
-      <span class="slot-player">—</span>
-      <span class="slot-ovr">—</span>
-    </div>`;
-  }).join('');
+  }
+  
+  // Map slot functions
+  const slotNames = {}; // FIFA slot → pitch key
+  for (let i = 0; i < formationSlots.length; i++) {
+    const s = formationSlots[i];
+    // Handle duplicate slots (CB, CB2, CB3 etc.)
+    let key = s;
+    let count = 0;
+    for (let j = 0; j <= i; j++) {
+      if (formationSlots[j] === s) count++;
+    }
+    if (count > 1) key = s + count;
+    const pos = slots[key];
+    if (pos) slotNames[s] = slotNames[s] || [];
+    if (pos) slotNames[s].push({ key, pos });
+  }
+  
+  // Find which team item corresponds to which pitch key
+  let idx = {};
+  for (let i = 0; i < formationSlots.length; i++) {
+    const s = formationSlots[i];
+    let count = 0;
+    for (let j = 0; j <= i; j++) {
+      if (formationSlots[j] === s) count++;
+    }
+    const key = count > 1 ? s + count : s;
+    idx[key] = myTeam[i];
+  }
+  
+  pitch.innerHTML = `
+    <div class="circle"></div>
+    <div class="penalty-box-top"></div>
+    <div class="penalty-box-bottom"></div>
+    ${Object.entries(slots).map(([key, pos]) => {
+      const teamItem = idx[key];
+      const player = teamItem?.player;
+      const filled = !!player;
+      
+      // Determine slot state for selection
+      let cls = 'pitch-slot';
+      if (filled) {
+        cls += ' filled';
+      } else if (selectedPlayerId) {
+        // Check if this slot is valid for the selected player
+        const slotPos = teamItem?.slot;
+        if (slotPos) {
+          const valid = selectedPositions.some(sp => {
+            if (sp === 'GK') return slotPos === 'GK';
+            if (['CB'].includes(sp)) return slotPos === 'CB';
+            if (['LB','LWB'].includes(sp)) return ['LB','LWB'].includes(slotPos);
+            if (['RB','RWB'].includes(sp)) return ['RB','RWB'].includes(slotPos);
+            if (['CDM'].includes(sp)) return ['CDM','CM'].includes(slotPos);
+            if (['CM'].includes(sp)) return ['CM','CDM','CAM'].includes(slotPos);
+            if (['CAM'].includes(sp)) return ['CAM','CM','CF'].includes(slotPos);
+            if (['LM','RM'].includes(sp)) return ['LM','RM','LW','RW','CM'].includes(slotPos);
+            if (['LW','RW'].includes(sp)) return ['LW','RW','LM','RM','ST','CF'].includes(slotPos);
+            if (['ST'].includes(sp)) return ['ST','CF','LW','RW'].includes(slotPos);
+            return sp === slotPos;
+          });
+          cls += valid ? ' valid-target' : ' invalid-target';
+        }
+      }
+      
+      const click = filled || (!selectedPlayerId) ? '' : `data-slot="${teamItem?.slot}"`;
+      
+      return `<div class="${cls}" style="left:${pos.x}%;top:${pos.y}%" ${click}>
+        ${filled
+          ? `<span class="ps-name">${player.slot||''}</span><span class="ps-name">${player.name||''}</span><span class="ps-ovr">${player.overall||''}</span>`
+          : `<span class="ps-slot-name">${teamItem?.slot||key}</span>`
+        }
+      </div>`;
+    }).join('')}
+  `;
+  
+  // Bind click handlers directly (more reliable than delegation)
+  pitch.querySelectorAll('.pitch-slot').forEach(slot => {
+    slot.addEventListener('click', function() {
+      const slotName = this.dataset.slot;
+      if (slotName && selectedPlayerId && !this.classList.contains('filled')) {
+        selectSlot(slotName);
+      }
+    });
+  });
 }
 
 // ── Match Result ──
 
 function handleDraftComplete(msg) {
   myTeam = msg.yourTeam;
-  renderYourTeam();
+  renderPitch();
   document.getElementById('timerFill').style.width = '0%';
   document.getElementById('timerText').textContent = 'Simulating match...';
   clearInterval(draftTimer);
@@ -684,10 +836,19 @@ function renderResult(msg) {
   const params = new URLSearchParams(location.search);
   const lobby = params.get('lobby');
   if (lobby) {
-    // Player 2 coming from a shared link — auto-connect
     connect(lobby, 'p2');
   }
 })();
+
+// ── Pitch slot click delegation ──
+document.getElementById('pitch').addEventListener('click', function(e) {
+  const slot = e.target.closest('.pitch-slot');
+  if (!slot) return;
+  const slotName = slot.dataset.slot;
+  if (slotName && selectedPlayerId && !slot.classList.contains('filled')) {
+    selectSlot(slotName);
+  }
+});
 </script>
 </body>
 </html>
