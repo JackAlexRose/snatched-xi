@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { DraftablePlayer } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
@@ -16,50 +16,49 @@ export function CardCarousel({
   claimed: Set<string>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [justSnapped, setJustSnapped] = useState<number | null>(null);
+  const snapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Use IntersectionObserver to detect which card is centered
-  useEffect(() => {
+  // Track which card is centered via scroll position
+  const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el || players.length === 0) return;
 
-    // Clean up previous observer
-    if (observerRef.current) observerRef.current.disconnect();
+    const cardEl = el.firstElementChild;
+    if (!cardEl) return;
+    const cardWidth = cardEl.getBoundingClientRect().width;
+    const gap = 8; // gap-2 = 0.5rem = 8px
+    const snapWidth = cardWidth + gap;
 
-    let bestIdx = 0;
-    let bestRatio = 0;
+    const idx = Math.round(el.scrollLeft / snapWidth);
+    const clamped = Math.max(0, Math.min(players.length - 1, idx));
 
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        // Update best ratios
-        for (const entry of entries) {
-          const idx = Number((entry.target as HTMLElement).dataset.index);
-          if (entry.intersectionRatio > bestRatio) {
-            bestRatio = entry.intersectionRatio;
-            bestIdx = idx;
-          }
-        }
-        setActiveIndex(bestIdx);
-      },
-      {
-        root: el,
-        threshold: [0, 0.25, 0.5, 0.75, 1],
-      }
-    );
+    if (clamped !== activeIndex) {
+      setActiveIndex(clamped);
+      // Trigger a squash-stretch burst on the newly-active card
+      setJustSnapped(clamped);
+      if (snapTimeout.current !== null) clearTimeout(snapTimeout.current);
+      snapTimeout.current = setTimeout(() => setJustSnapped(null), 450);
+    }
+  }, [players.length, activeIndex]);
 
-    // Observe all cards
-    const cards = el.querySelectorAll("[data-index]");
-    cards.forEach((card) => observerRef.current!.observe(card));
-
-    return () => observerRef.current?.disconnect();
-  }, [players.map(p => p.id).join(",").slice(0, 50)]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   // Scroll to start when squad changes
   useEffect(() => {
     if (scrollRef.current && players.length > 0) {
       scrollRef.current.scrollLeft = 0;
       setActiveIndex(0);
+      setJustSnapped(0);
+      if (snapTimeout.current !== null) clearTimeout(snapTimeout.current);
+      snapTimeout.current = setTimeout(() => setJustSnapped(null), 450);
     }
   }, [players.map(p => p.id).join(",").slice(0, 50)]);
 
@@ -84,16 +83,23 @@ export function CardCarousel({
       >
         {players.map((player, i) => {
           const isActive = i === activeIndex;
+          const isSnapping = justSnapped === i;
           const isSelected = selectedPlayerId === player.id;
 
           return (
             <div
               key={player.id}
               data-index={i}
-              className="flex-shrink-0 snap-center transition-all duration-300"
+              className="flex-shrink-0 snap-center"
               style={{
-                transform: isActive ? "scale(1)" : "scale(0.88)",
+                transition: "transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease-out",
+                transform: isSnapping
+                  ? "scale(1)" // animation applies squash-stretch via keyframe class
+                  : isActive
+                    ? "scale(1)"
+                    : "scale(0.88)",
                 opacity: isActive ? 1 : 0.55,
+                animation: isSnapping ? "card-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)" : "none",
               }}
             >
               <PlayerCard

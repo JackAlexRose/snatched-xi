@@ -46,15 +46,12 @@ body {
   animation: timer-pulse 0.6s ease-in-out infinite;
 }
 
-/* Snappy card snap-in */
-@keyframes card-snap {
-  0% { transform: scale(1.15); opacity: 1; }
-  50% { transform: scale(0.6); opacity: 0.4; }
-  100% { transform: scale(0); opacity: 0; }
-}
-
-.animate-card-snap {
-  animation: card-snap 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+/* Squash-and-stretch card pop when card becomes active */
+@keyframes card-pop {
+  0%   { transform: scaleX(0.88) scaleY(0.88); }
+  35%  { transform: scaleX(1.06) scaleY(0.93); }
+  65%  { transform: scaleX(0.96) scaleY(1.04); }
+  100% { transform: scaleX(1) scaleY(1); }
 }
 
 /* Scrollbar hide for carousel */
