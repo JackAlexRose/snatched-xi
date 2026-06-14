@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { DraftablePlayer } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
@@ -22,6 +23,8 @@ export function CardCarousel({
   onSelectPlayer: (pid: string) => void;
   claimed: Set<string>;
 }) {
+  const touchStartX = useRef<number | null>(null);
+
   if (players.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 text-slate-soft text-sm font-display">
@@ -42,25 +45,49 @@ export function CardCarousel({
     if (position === "center") {
       onSelectPlayer(player.id);
     } else {
-      // Navigate to that card
       const idx = position === "left" ? leftIdx : rightIdx;
       onNavigate(idx);
     }
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    touchStartX.current = null;
+
+    const SWIPE_THRESHOLD = 50;
+    if (Math.abs(diff) < SWIPE_THRESHOLD) return;
+
+    if (diff > 0) {
+      // Swiped left → next card (rightwards navigation)
+      onNavigate(rightIdx);
+    } else {
+      // Swiped right → previous card (leftwards navigation)
+      onNavigate(leftIdx);
+    }
+  };
+
   return (
     <div className="perspective-container flex items-center justify-center gap-2 py-4 px-2 select-none">
-      {/* Left arrow */}
+      {/* Left arrow — hidden on touch devices */}
       <button
         onClick={() => onNavigate(leftIdx)}
-        className="flex-shrink-0 w-8 h-8 rounded-full bg-white border border-[#E2E8F0] flex items-center justify-center text-navy hover:bg-[#F1F5F9] transition-colors font-display text-sm"
+        className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-white border border-[#E2E8F0] items-center justify-center text-navy hover:bg-[#F1F5F9] transition-colors font-display text-sm"
         aria-label="Previous player"
       >
         ‹
       </button>
 
-      {/* Cards row */}
-      <div className="flex items-center gap-1 overflow-visible">
+      {/* Cards row — swipeable */}
+      <div
+        className="flex items-center gap-1 overflow-visible touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Left card (faded, smaller) */}
         <div
           onClick={() => handleCardClick(left, "left")}
@@ -106,10 +133,10 @@ export function CardCarousel({
         </div>
       </div>
 
-      {/* Right arrow */}
+      {/* Right arrow — hidden on touch devices */}
       <button
         onClick={() => onNavigate(rightIdx)}
-        className="flex-shrink-0 w-8 h-8 rounded-full bg-white border border-[#E2E8F0] flex items-center justify-center text-navy hover:bg-[#F1F5F9] transition-colors font-display text-sm"
+        className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-white border border-[#E2E8F0] items-center justify-center text-navy hover:bg-[#F1F5F9] transition-colors font-display text-sm"
         aria-label="Next player"
       >
         ›

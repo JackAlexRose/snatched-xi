@@ -35,12 +35,19 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
 }) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [pitchExpanded, setPitchExpanded] = useState(false);
   const slots = FORMATION_SLOTS[yourFormation] || [];
   const pitchSlots = PITCH_SLOTS[yourFormation] || {};
 
   const selectPlayer = (pid: string) => {
     if (claimed.has(pid)) return;
-    setSelectedPlayerId(pid === selectedPlayerId ? null : pid);
+    if (pid === selectedPlayerId) {
+      setSelectedPlayerId(null);
+    } else {
+      setSelectedPlayerId(pid);
+      // Auto-expand pitch when selecting a player so they can see slot targets
+      setPitchExpanded(true);
+    }
   };
 
   const selectSlot = (slotIndex: number) => {
@@ -49,7 +56,7 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
     setSelectedPlayerId(null);
   };
 
-  // Build pitch index (same logic as before)
+  // Build pitch index
   const pitchIdx: Record<string, { item: any; index: number }> = {};
   const slotCounts: Record<string, number> = {};
   for (let i = 0; i < slots.length; i++) {
@@ -70,14 +77,6 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
 
   const prevSquadRef = useRef<string>("");
 
-  // Reset carousel when new squad arrives
-  useEffect(() => {
-    const squadFingerprint = squad.length > 0 ? String(squad.length) + "-" + String(carouselIndex) : "";
-    if (squad.length > 0 && prevSquadRef.current && squadFingerprint !== prevSquadRef.current) {
-      // Only reset on genuinely new squads (not just re-renders)
-    }
-  }, [squad.length]);
-
   // Reset carousel + selection when squad changes completely
   const squadId = squad.length > 0 ? squad.map(p => p.id).join(",").slice(0, 50) : "";
   useEffect(() => {
@@ -85,6 +84,7 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
       prevSquadRef.current = squadId;
       setCarouselIndex(0);
       setSelectedPlayerId(null);
+      setPitchExpanded(false);
     }
   }, [squadId]);
 
@@ -113,8 +113,11 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
         {timerLabel}
       </div>
 
-      {/* Card Carousel */}
-      <div className="flex-1 flex flex-col justify-center">
+      {/* Main content area — clicking here collapses the pitch */}
+      <div
+        className="flex-1 flex flex-col justify-center"
+        onClick={() => setPitchExpanded(false)}
+      >
         <CardCarousel
           players={squad}
           centerIndex={carouselIndex}
@@ -125,8 +128,8 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
         />
       </div>
 
-      {/* Mini-Pitch — fixed at bottom on mobile */}
-      <div className="sticky bottom-0 bg-cream/95 backdrop-blur-sm border-t border-[#E2E8F0] pt-3 pb-4 px-2">
+      {/* Pitch drawer — fixed at bottom */}
+      <div className="sticky bottom-0 bg-cream/95 backdrop-blur-sm border-t border-[#E2E8F0] px-2 pb-3">
         <MiniPitch
           myTeam={myTeam}
           yourFormation={yourFormation}
@@ -137,6 +140,8 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
           slotCounts={slotCounts}
           onSelectSlot={selectSlot}
           avgOvr={avgOvr}
+          collapsed={!pitchExpanded}
+          onToggle={() => setPitchExpanded(prev => !prev)}
         />
       </div>
     </div>

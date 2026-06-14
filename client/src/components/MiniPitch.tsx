@@ -17,6 +17,8 @@ export function MiniPitch({
   slotCounts,
   onSelectSlot,
   avgOvr,
+  collapsed,
+  onToggle,
 }: {
   myTeam: any[];
   yourFormation: string;
@@ -27,21 +29,38 @@ export function MiniPitch({
   slotCounts: Record<string, number>;
   onSelectSlot: (slotIndex: number) => void;
   avgOvr: number | null;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
+  const filledCount = myTeam.filter((s: any) => s.player).length;
+
   return (
     <div className="w-full max-w-[360px] mx-auto">
-      {/* Header */}
-      <div className="text-center text-navy font-display text-xs mb-2">
-        YOUR XI — {yourFormation}
+      {/* Drawer handle — always visible, tap to toggle */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        className="w-full flex items-center justify-center gap-2 py-2 text-navy font-display text-xs font-bold cursor-pointer hover:bg-[#E2E8F0]/30 rounded-t-xl transition-colors select-none"
+      >
+        <span>YOUR XI — {yourFormation}</span>
         {avgOvr !== null && (
-          <span className="text-coral ml-2 font-bold">{avgOvr} OVR</span>
+          <span className="text-coral font-bold">{avgOvr} OVR</span>
         )}
-      </div>
+        <span className="text-slate-soft ml-1">{filledCount}/11</span>
+        <svg
+          width="12" height="12" viewBox="0 0 12 12"
+          className={`transition-transform duration-300 ${collapsed ? "rotate-180" : ""}`}
+        >
+          <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        </svg>
+      </button>
 
-      {/* Pitch */}
-      <div className="relative w-full aspect-[3/4] max-h-[440px] rounded-xl overflow-hidden border border-[#DCFCE7]"
-        style={{ background: "linear-gradient(180deg, #F0FDF4 0%, #ECFDF5 50%, #F0FDF4 100%)" }}>
-        
+      {/* Pitch — only visible when expanded */}
+      <div
+        className={`relative w-full rounded-xl overflow-hidden border border-[#DCFCE7] transition-all duration-300 ease-out ${
+          collapsed ? "h-0 border-transparent opacity-0" : "aspect-[3/4] max-h-[440px] opacity-100"
+        }`}
+        style={{ background: collapsed ? "transparent" : "linear-gradient(180deg, #F0FDF4 0%, #ECFDF5 50%, #F0FDF4 100%)" }}
+      >
         {/* Field markings */}
         <div className="absolute top-1/2 left-[5%] right-[5%] border-t border-[#DCFCE7] pointer-events-none" />
         <div className="absolute top-[5%] bottom-[5%] left-1/2 border-l border-[#DCFCE7] pointer-events-none" />
