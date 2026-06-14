@@ -14,24 +14,31 @@ export function BlueprintScreen({ onLock }: { onLock: (f: string) => void }) {
   };
 
   return (
-    <div className="max-w-lg mx-auto mt-16 px-6">
-      <h2 className="text-lg mb-6 text-center">Choose Your Formation</h2>
-      <div className="grid grid-cols-4 gap-3 mb-8">
+    <div className="max-w-md mx-auto mt-16 px-6">
+      <h2 className="text-lg font-bold font-display text-navy mb-8 text-center">Choose Your Formation</h2>
+      <div className="grid grid-cols-3 gap-3 mb-8">
         {FORMATIONS.map((f) => (
           <button key={f} onClick={() => !locked && setSelected(f)}
             disabled={locked}
-            className={`px-3 py-3 text-sm text-center border cursor-pointer transition-colors
-              ${selected === f ? "bg-[#e9393f] text-white border-[#e9393f]" : "bg-[#1a1a1a] text-[#c4c4c4] border-[#444] hover:border-[#e9393f]"}
-              ${locked ? "opacity-30 cursor-not-allowed" : ""}`}>
+            className={`px-3 py-4 text-sm text-center rounded-xl border-2 font-display font-bold cursor-pointer transition-all
+              ${selected === f
+                ? "bg-navy text-white border-navy shadow-md"
+                : "bg-white text-navy border-[#E2E8F0] hover:border-slate-soft"}
+              ${locked ? "opacity-40 cursor-not-allowed" : ""}`}>
             {f}
           </button>
         ))}
       </div>
       <button onClick={lock} disabled={!selected || locked}
-        className="w-full bg-[#e9393f] text-white px-6 py-3 cursor-pointer hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed">
+        className="w-full bg-mint text-white px-6 py-3 rounded-xl font-display font-bold cursor-pointer hover:bg-mint/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
         Lock In
       </button>
-      {locked && <div className="text-[#2ecc71] text-center mt-4">Formation locked — waiting for opponent...</div>}
+      {locked && (
+        <div className="text-mint text-center mt-4 font-display text-sm flex items-center justify-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse inline-block" />
+          Waiting for opponent...
+        </div>
+      )}
     </div>
   );
 }

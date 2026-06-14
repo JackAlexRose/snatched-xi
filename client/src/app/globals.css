@@ -1,1 +1,62 @@
 @import "tailwindcss";
+
+@theme {
+  --color-cream: #F8FAFC;
+  --color-navy: #1E293B;
+  --color-coral: #F43F5E;
+  --color-mint: #10B981;
+  --color-slate-soft: #94A3B8;
+  --color-field: #F0FDF4;
+  --color-card-bg: #FEFCE8;
+  --color-card-border: #FDE68A;
+  --font-display: "Departure Mono", monospace;
+  --font-body: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-cream);
+  color: var(--color-navy);
+}
+
+/* Card carousel perspective */
+.perspective-container {
+  perspective: 800px;
+}
+
+/* Bounce animation for eligible slots */
+@keyframes slot-bounce {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  30% { transform: translate(-50%, -50%) scale(1.12); }
+  50% { transform: translate(-50%, -50%) scale(1.05); }
+  70% { transform: translate(-50%, -50%) scale(1.12); }
+}
+
+.animate-slot-bounce {
+  animation: slot-bounce 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
+}
+
+/* Timer pulse under 3s */
+@keyframes timer-pulse {
+  0%, 100% { background-color: var(--color-cream); }
+  50% { background-color: #FEE2E2; }
+}
+
+.animate-timer-pulse {
+  animation: timer-pulse 0.6s ease-in-out infinite;
+}
+
+/* Snappy card snap-in */
+@keyframes card-snap {
+  0% { transform: scale(1.15); opacity: 1; }
+  50% { transform: scale(0.6); opacity: 0.4; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+.animate-card-snap {
+  animation: card-snap 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Scrollbar hide for carousel */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

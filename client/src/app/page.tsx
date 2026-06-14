@@ -142,19 +142,16 @@ export default function Home() {
     switch (msg.type) {
       case "lobby_state":
         if (msg.phase === "BLUEPRINT") {
-          // Pick random formation
           const randFormation = FORMATIONS[Math.floor(Math.random() * FORMATIONS.length)];
           setTimeout(() => ws.send(JSON.stringify({ type: "submit_blueprint", formation: randFormation })), 1000);
         }
         break;
       case "squad_board":
-        // Pick a random player after 2-5 seconds
         const delay = 2000 + Math.random() * 3000;
         setTimeout(() => {
           const available = msg.players.filter(p => !claimed.has(p.id));
           if (available.length > 0) {
             const pick = available[Math.floor(Math.random() * available.length)];
-            // Auto-pick first available slot that fits
             ws.send(JSON.stringify({ type: "draft_pick", playerId: pick.id }));
           }
         }, delay);
@@ -170,7 +167,6 @@ export default function Home() {
     setDebug(true);
     const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/lobby/create", { method: "POST" });
     const data = await res.json();
-    // Connect as p1, then spawn bot as p2
     connect(data.lobbyId, "p1");
     setTimeout(() => connect(data.lobbyId, "p2", true), 500);
   }, [connect]);
@@ -186,31 +182,37 @@ export default function Home() {
     }, 80);
   };
 
+  // Draft phase uses its own internal header — other phases use a minimal shell
+  if (phase === "draft") {
+    return (
+      <DraftScreen
+        sendMessage={sendMessage}
+        myTeam={myTeam}
+        yourFormation={yourFormation!}
+        playerId={playerId!}
+        squad={squad}
+        wheelClub={wheelClub} wheelSeason={wheelSeason} spinning={spinning}
+        timer={timer} timerMax={timerMax} timerLabel={timerLabel}
+        opponentMsg={opponentMsg} claimed={claimed}
+        currentRound={currentRound}
+      />
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-[#262626] text-[#c4c4c4] font-mono">
-      <header className="border-b border-[#444] px-6 py-4 flex justify-between items-center">
-        <h1 className="text-[#e9393f] text-xl font-bold">Snatched XI{debug ? " [DEBUG]" : ""}</h1>
-        <span className="text-[#888] text-sm uppercase">
-          {phase === "lobby" ? "LOBBY" : phase === "blueprint" ? "BLUEPRINT" : phase === "draft" ? `DRAFT R${currentRound || 1}` : "GAME OVER"}
+    <main className="min-h-screen bg-cream text-navy">
+      <header className="sticky top-0 z-20 bg-cream/95 backdrop-blur-sm border-b border-[#E2E8F0] px-4 py-3 max-w-[480px] mx-auto flex justify-between items-center">
+        <h1 className="font-bold text-lg text-navy font-display tracking-tight">
+          Snatched XI{debug ? " [DEBUG]" : ""}
+        </h1>
+        <span className="bg-navy text-white text-[0.65rem] font-bold font-display px-2 py-0.5 rounded-md">
+          {phase === "lobby" ? "LOBBY" : phase === "blueprint" ? "SETUP" : "GAME OVER"}
         </span>
-        {error && <span className="text-red-500 text-xs ml-4">{error}</span>}
+        {error && <span className="text-coral text-xs ml-2">{error}</span>}
       </header>
 
       {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} lobbyId={lobbyId} playerId={playerId || ""} />}
-      {phase === "blueprint" && <BlueprintScreen onLock={(f) => sendMessage({ type: "submit_blueprint", formation: f })} />}
-      {phase === "draft" && (
-        <DraftScreen
-          sendMessage={sendMessage}
-          myTeam={myTeam}
-          yourFormation={yourFormation!}
-          playerId={playerId!}
-          squad={squad}
-          wheelClub={wheelClub} wheelSeason={wheelSeason} spinning={spinning}
-          timer={timer} timerMax={timerMax} timerLabel={timerLabel}
-          opponentMsg={opponentMsg} claimed={claimed}
-          currentRound={currentRound}
-        />
-      )}
+      {phase === "blueprint" && <BlueprintScreen onLock={(f: string) => sendMessage({ type: "submit_blueprint", formation: f })} />}
       {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} />}
     </main>
   );

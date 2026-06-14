@@ -16,57 +16,64 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
   const myTeamRatings: PlayerRating[] = (isHome ? result.homeTeam : result.awayTeam).slice(0, 5);
   const oppTeamRatings: PlayerRating[] = (isHome ? result.awayTeam : result.homeTeam).slice(0, 5);
   
-  // Compute average OVR from myTeam (filled slots only)
   const filledSlots = myTeam.filter((s: any) => s.player);
   const myAvgOvr = filledSlots.length > 0
     ? Math.round(filledSlots.reduce((sum: number, s: any) => sum + s.player.overall, 0) / filledSlots.length)
     : null;
 
   const PlayerRow = ({ p }: { p: PlayerRating }) => (
-    <div className="flex justify-between items-center py-2 px-3 bg-[#1a1a1a] border border-[#444] mb-1">
-      <div className="flex items-center gap-2">
-        <PlayerAvatar name={p.playerName} size={24} />
-        <span>
-          {p.playerName}
-          <span className="text-[#888] text-xs ml-1">{p.positions?.slice(0, 2).join("/")}</span>
-          {p.goals ? <span className="ml-1">⚽{p.goals}</span> : null}
-          {p.assists ? <span className="ml-1">🅰{p.assists}</span> : null}
-        </span>
+    <div className="flex justify-between items-center py-2.5 px-3 bg-white border border-[#E2E8F0] rounded-lg mb-1.5">
+      <div className="flex items-center gap-2.5">
+        <PlayerAvatar name={p.playerName} size={28} />
+        <div>
+          <span className="text-navy font-display font-bold text-sm">{p.playerName}</span>
+          <span className="text-slate-soft text-xs ml-1.5">{p.positions?.slice(0, 2).join("/")}</span>
+          {p.goals ? <span className="ml-1.5 text-xs">⚽{p.goals}</span> : null}
+          {p.assists ? <span className="ml-1.5 text-xs">🅰{p.assists}</span> : null}
+        </div>
       </div>
-      <span className="text-[#f1c40f] font-bold">{p.rating}</span>
+      <span className="text-navy font-display font-bold text-lg">{p.rating.toFixed(1)}</span>
     </div>
   );
 
+  const resultColor = result.winner === "draw" ? "text-slate-soft" : result.winner === playerId ? "text-mint" : "text-coral";
+  const resultText = result.winner === "draw" ? "It's a Draw" : result.winner === playerId ? "You Win!" : "You Lose";
+
   return (
-    <div className="max-w-lg mx-auto mt-8 px-6">
-      <div className="text-center text-4xl text-[#f1c40f] mb-2">
+    <div className="max-w-md mx-auto mt-8 px-6">
+      <div className="text-center text-5xl font-display font-bold text-navy mb-1">
         {myScore} — {oppScore}
       </div>
-      <div className="text-center text-xl mb-6 text-[#2ecc71]">
-        {result.winner === "draw" ? "It's a Draw!" : result.winner === playerId ? "You Win!" : "You Lose"}
+      <div className={`text-center text-xl font-display font-bold mb-8 ${resultColor}`}>
+        {resultText}
       </div>
 
       {/* Your Team */}
-      <h3 className="text-[#2ecc71] font-bold mb-3">
-        Your Team{myAvgOvr && <span className="text-[#f1c40f] ml-2 text-sm font-normal">{myAvgOvr} OVR</span>}
+      <h3 className="font-display font-bold text-navy text-sm mb-3 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-mint inline-block" />
+        Your Team
+        {myAvgOvr !== null && <span className="text-coral font-bold ml-1">{myAvgOvr} OVR</span>}
       </h3>
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-3 gap-2 mb-4">
         <StatBox value={`${myStats.poss}%`} label="Possession" />
-        <StatBox value={myStats.sot} label="Shots on Target" />
-        <StatBox value={myStats.shots} label="Total Shots" />
+        <StatBox value={myStats.sot} label="On Target" />
+        <StatBox value={myStats.shots} label="Shots" />
       </div>
       {myTeamRatings.map((p) => <PlayerRow key={p.playerId} p={p} />)}
 
       {/* Opponent */}
-      <h3 className="text-[#e9393f] font-bold mt-8 mb-3">Opponent</h3>
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      <h3 className="font-display font-bold text-navy text-sm mt-8 mb-3 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-coral inline-block" />
+        Opponent
+      </h3>
+      <div className="grid grid-cols-3 gap-2 mb-4">
         <StatBox value={`${oppStats.poss}%`} label="Possession" />
-        <StatBox value={oppStats.sot} label="Shots on Target" />
-        <StatBox value={oppStats.shots} label="Total Shots" />
+        <StatBox value={oppStats.sot} label="On Target" />
+        <StatBox value={oppStats.shots} label="Shots" />
       </div>
       {oppTeamRatings.map((p) => <PlayerRow key={p.playerId} p={p} />)}
 
-      <button onClick={() => location.reload()} className="w-full mt-8 bg-[#1a1a1a] text-[#c4c4c4] border border-[#444] px-6 py-3 cursor-pointer hover:border-[#e9393f]">
+      <button onClick={() => location.reload()} className="w-full mt-8 bg-navy text-white rounded-xl px-6 py-3 font-display font-bold cursor-pointer hover:bg-navy/90 transition-colors">
         Play Again
       </button>
     </div>
@@ -75,9 +82,9 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
 
 function StatBox({ value, label }: { value: number | string; label: string }) {
   return (
-    <div className="bg-[#1a1a1a] border border-[#444] p-3 text-center">
-      <div className="text-xl text-[#e9393f]">{value}</div>
-      <div className="text-[#888] text-[0.6rem] mt-1">{label}</div>
+    <div className="bg-white border border-[#E2E8F0] rounded-xl p-3 text-center">
+      <div className="text-xl font-display font-bold text-navy">{value}</div>
+      <div className="text-slate-soft text-[0.6rem] font-display mt-0.5">{label}</div>
     </div>
   );
 }
