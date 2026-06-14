@@ -1,29 +1,53 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { DraftablePlayer } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
-function wrapIndex(i: number, len: number): number {
-  return ((i % len) + len) % len;
-}
-
 export function CardCarousel({
   players,
-  centerIndex,
-  onNavigate,
-  selectedPlayerId,
   onSelectPlayer,
+  selectedPlayerId,
   claimed,
 }: {
   players: DraftablePlayer[];
-  centerIndex: number;
-  onNavigate: (i: number) => void;
-  selectedPlayerId: string | null;
   onSelectPlayer: (pid: string) => void;
+  selectedPlayerId: string | null;
   claimed: Set<string>;
 }) {
-  const touchStartX = useRef<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Track which card is centered via scroll position
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || players.length === 0) return;
+
+    const cardWidth = el.firstElementChild?.getBoundingClientRect().width ?? 140;
+    const gap = 8;
+    const snapWidth = cardWidth + gap;
+    const center = el.scrollLeft + el.clientWidth / 2;
+    const idx = Math.round(center / snapWidth);
+    const clamped = Math.max(0, Math.min(players.length - 1, idx));
+    setActiveIndex(clamped);
+  }, [players.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    // Initial calculation
+    handleScroll();
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  // Auto-scroll to index 0 when players change
+  useEffect(() => {
+    if (scrollRef.current && players.length > 0) {
+      scrollRef.current.scrollLeft = 0;
+      setActiveIndex(0);
+    }
+  }, [players.map(p => p.id).join(",").slice(0, 50)]);
 
   if (players.length === 0) {
     return (
@@ -33,114 +57,42 @@ export function CardCarousel({
     );
   }
 
-  const len = players.length;
-  const leftIdx = wrapIndex(centerIndex - 1, len);
-  const rightIdx = wrapIndex(centerIndex + 1, len);
-
-  const left = players[leftIdx];
-  const center = players[centerIndex];
-  const right = players[rightIdx];
-
-  const handleCardClick = (player: DraftablePlayer, position: "left" | "center" | "right") => {
-    if (position === "center") {
-      onSelectPlayer(player.id);
-    } else {
-      const idx = position === "left" ? leftIdx : rightIdx;
-      onNavigate(idx);
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const diff = touchStartX.current - e.changedTouches[0].clientX;
-    touchStartX.current = null;
-
-    const SWIPE_THRESHOLD = 50;
-    if (Math.abs(diff) < SWIPE_THRESHOLD) return;
-
-    if (diff > 0) {
-      // Swiped left → next card (rightwards navigation)
-      onNavigate(rightIdx);
-    } else {
-      // Swiped right → previous card (leftwards navigation)
-      onNavigate(leftIdx);
-    }
-  };
-
   return (
-    <div className="perspective-container flex items-center justify-center gap-2 py-4 px-2 select-none">
-      {/* Left arrow — hidden on touch devices */}
-      <button
-        onClick={() => onNavigate(leftIdx)}
-        className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-white border border-[#E2E8F0] items-center justify-center text-navy hover:bg-[#F1F5F9] transition-colors font-display text-sm"
-        aria-label="Previous player"
-      >
-        ‹
-      </button>
-
-      {/* Cards row — swipeable */}
-      <div
-        className="flex items-center gap-1 overflow-visible touch-pan-y"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        {/* Left card (faded, smaller) */}
-        <div
-          onClick={() => handleCardClick(left, "left")}
-          className="cursor-pointer transition-all duration-300"
-          style={{ transform: "rotateY(12deg) scale(0.85)" }}
-        >
-          <PlayerCard
-            player={left}
-            isSelected={false}
-            isClaimed={claimed.has(left.id)}
-            onClick={() => {}}
-            faded
-          />
-        </div>
-
-        {/* Center card (active, scaled up) */}
-        <div
-          onClick={() => handleCardClick(center, "center")}
-          className="z-10 transition-all duration-300"
-          style={{ transform: "scale(1.15)" }}
-        >
-          <PlayerCard
-            player={center}
-            isSelected={selectedPlayerId === center.id}
-            isClaimed={claimed.has(center.id)}
-            onClick={() => {}}
-          />
-        </div>
-
-        {/* Right card (faded, smaller) */}
-        <div
-          onClick={() => handleCardClick(right, "right")}
-          className="cursor-pointer transition-all duration-300"
-          style={{ transform: "rotateY(-12deg) scale(0.85)" }}
-        >
-          <PlayerCard
-            player={right}
-            isSelected={false}
-            isClaimed={claimed.has(right.id)}
-            onClick={() => {}}
-            faded
-          />
-        </div>
+    <div className="w-full max-w-full overflow-hidden">
+      {/* Swipe hint */}
+      <div className="text-center text-slate-soft text-[0.6rem] font-display mb-1 select-none">
+        ← swipe to browse {players.length} players →
       </div>
 
-      {/* Right arrow — hidden on touch devices */}
-      <button
-        onClick={() => onNavigate(rightIdx)}
-        className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-white border border-[#E2E8F0] items-center justify-center text-navy hover:bg-[#F1F5F9] transition-colors font-display text-sm"
-        aria-label="Next player"
+      {/* Scroll-snap carousel */}
+      <div
+        ref={scrollRef}
+        className="flex gap-2 overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar px-[calc(50%-80px)]"
+        style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
       >
-        ›
-      </button>
+        {players.map((player, i) => {
+          const isActive = i === activeIndex;
+          const isSelected = selectedPlayerId === player.id;
+
+          return (
+            <div
+              key={player.id}
+              className="flex-shrink-0 snap-center transition-all duration-300"
+              style={{
+                transform: isActive ? "scale(1)" : "scale(0.88)",
+                opacity: isActive ? 1 : 0.55,
+              }}
+            >
+              <PlayerCard
+                player={player}
+                isSelected={isSelected}
+                isClaimed={claimed.has(player.id)}
+                onClick={() => onSelectPlayer(player.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

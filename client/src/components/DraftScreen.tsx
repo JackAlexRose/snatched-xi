@@ -1,26 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { FORMATION_SLOTS, PITCH_SLOTS, DraftablePlayer } from "@/types";
 import { HeaderBar, WheelBanner } from "./HeaderBar";
 import { CardCarousel } from "./CardCarousel";
 import { MiniPitch } from "./MiniPitch";
-
-function canPlaySlot(playerPositions: string[], slot: string): boolean {
-  const sp = playerPositions.map(p => p.toUpperCase());
-  const sl = slot.toUpperCase();
-  if (sl === 'GK') return sp.includes('GK');
-  if (sl === 'CB') return sp.some(p => ['CB'].includes(p));
-  if (['LB','LWB'].includes(sl)) return sp.some(p => ['LB','LWB'].includes(p));
-  if (['RB','RWB'].includes(sl)) return sp.some(p => ['RB','RWB'].includes(p));
-  if (sl === 'CDM') return sp.some(p => ['CDM','CM'].includes(p));
-  if (sl === 'CM') return sp.some(p => ['CM','CDM','CAM'].includes(p));
-  if (sl === 'CAM') return sp.some(p => ['CAM','CM','CF'].includes(p));
-  if (['LM','RM'].includes(sl)) return sp.some(p => ['LM','RM','LW','RW','CM'].includes(p));
-  if (['LW','RW'].includes(sl)) return sp.some(p => ['LW','RW','LM','RM','ST','CF'].includes(p));
-  if (sl === 'ST') return sp.some(p => ['ST','CF','LW','RW'].includes(p));
-  return sp.includes(sl);
-}
 
 export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squad, wheelClub, wheelSeason, spinning, timer, timerMax, timerLabel, opponentMsg, claimed, currentRound }: {
   sendMessage: (msg: object) => void;
@@ -34,7 +18,6 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
   currentRound: number;
 }) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [carouselIndex, setCarouselIndex] = useState(0);
   const [pitchExpanded, setPitchExpanded] = useState(false);
   const slots = FORMATION_SLOTS[yourFormation] || [];
   const pitchSlots = PITCH_SLOTS[yourFormation] || {};
@@ -45,7 +28,7 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
       setSelectedPlayerId(null);
     } else {
       setSelectedPlayerId(pid);
-      // Auto-expand pitch when selecting a player so they can see slot targets
+      // Auto-expand pitch so player can see slot targets
       setPitchExpanded(true);
     }
   };
@@ -75,21 +58,8 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
     ? Math.round(myTeam.filter((s: any) => s.player).reduce((sum: number, s: any) => sum + s.player.overall, 0) / filledCount)
     : null;
 
-  const prevSquadRef = useRef<string>("");
-
-  // Reset carousel + selection when squad changes completely
-  const squadId = squad.length > 0 ? squad.map(p => p.id).join(",").slice(0, 50) : "";
-  useEffect(() => {
-    if (squadId && squadId !== prevSquadRef.current) {
-      prevSquadRef.current = squadId;
-      setCarouselIndex(0);
-      setSelectedPlayerId(null);
-      setPitchExpanded(false);
-    }
-  }, [squadId]);
-
   return (
-    <div className="min-h-screen bg-cream flex flex-col">
+    <div className="min-h-[100dvh] bg-cream flex flex-col overflow-hidden">
       {/* Sticky Header */}
       <HeaderBar
         currentRound={currentRound}
@@ -98,7 +68,7 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
       />
 
       {/* Timer progress bar */}
-      <div className="h-1 bg-[#E2E8F0]">
+      <div className="h-1 bg-[#E2E8F0] flex-shrink-0">
         <div
           className={`h-full transition-all duration-1000 ${timer <= 3 ? "bg-coral" : "bg-mint"}`}
           style={{ width: `${timerMax > 0 ? (timer / timerMax) * 100 : 0}%` }}
@@ -109,19 +79,17 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
       <WheelBanner club={wheelClub} season={wheelSeason} spinning={spinning} />
 
       {/* Timer label */}
-      <div className="text-center text-slate-soft text-xs font-display py-2">
+      <div className="text-center text-slate-soft text-xs font-display py-1.5 flex-shrink-0">
         {timerLabel}
       </div>
 
-      {/* Main content area — clicking here collapses the pitch */}
+      {/* Main content — clicking here collapses pitch */}
       <div
-        className="flex-1 flex flex-col justify-center"
+        className="flex-1 flex flex-col justify-center min-h-0"
         onClick={() => setPitchExpanded(false)}
       >
         <CardCarousel
           players={squad}
-          centerIndex={carouselIndex}
-          onNavigate={setCarouselIndex}
           selectedPlayerId={selectedPlayerId}
           onSelectPlayer={selectPlayer}
           claimed={claimed}
@@ -129,7 +97,7 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
       </div>
 
       {/* Pitch drawer — fixed at bottom */}
-      <div className="sticky bottom-0 bg-cream/95 backdrop-blur-sm border-t border-[#E2E8F0] px-2 pb-3">
+      <div className="flex-shrink-0 sticky bottom-0 bg-cream/95 backdrop-blur-sm border-t border-[#E2E8F0] px-2 pb-3 pt-1">
         <MiniPitch
           myTeam={myTeam}
           yourFormation={yourFormation}
