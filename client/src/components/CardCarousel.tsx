@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState } from "react";
 import { DraftablePlayer } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
@@ -16,32 +16,46 @@ export function CardCarousel({
   claimed: Set<string>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Track which card is centered via scroll position
-  const handleScroll = useCallback(() => {
+  // Use IntersectionObserver to detect which card is centered
+  useEffect(() => {
     const el = scrollRef.current;
     if (!el || players.length === 0) return;
 
-    const cardWidth = el.firstElementChild?.getBoundingClientRect().width ?? 140;
-    const gap = 8;
-    const snapWidth = cardWidth + gap;
-    const center = el.scrollLeft + el.clientWidth / 2;
-    const idx = Math.round(center / snapWidth);
-    const clamped = Math.max(0, Math.min(players.length - 1, idx));
-    setActiveIndex(clamped);
-  }, [players.length]);
+    // Clean up previous observer
+    if (observerRef.current) observerRef.current.disconnect();
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    // Initial calculation
-    handleScroll();
-    return () => el.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+    let bestIdx = 0;
+    let bestRatio = 0;
 
-  // Auto-scroll to index 0 when players change
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        // Update best ratios
+        for (const entry of entries) {
+          const idx = Number((entry.target as HTMLElement).dataset.index);
+          if (entry.intersectionRatio > bestRatio) {
+            bestRatio = entry.intersectionRatio;
+            bestIdx = idx;
+          }
+        }
+        setActiveIndex(bestIdx);
+      },
+      {
+        root: el,
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      }
+    );
+
+    // Observe all cards
+    const cards = el.querySelectorAll("[data-index]");
+    cards.forEach((card) => observerRef.current!.observe(card));
+
+    return () => observerRef.current?.disconnect();
+  }, [players.map(p => p.id).join(",").slice(0, 50)]);
+
+  // Scroll to start when squad changes
   useEffect(() => {
     if (scrollRef.current && players.length > 0) {
       scrollRef.current.scrollLeft = 0;
@@ -59,15 +73,13 @@ export function CardCarousel({
 
   return (
     <div className="w-full max-w-full overflow-hidden">
-      {/* Swipe hint */}
       <div className="text-center text-slate-soft text-[0.6rem] font-display mb-1 select-none">
         ← swipe to browse {players.length} players →
       </div>
 
-      {/* Scroll-snap carousel */}
       <div
         ref={scrollRef}
-        className="flex gap-2 overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar px-[calc(50%-80px)]"
+        className="flex gap-2 overflow-x-auto snap-x snap-mandatory no-scrollbar px-[calc(50%-80px)]"
         style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
       >
         {players.map((player, i) => {
@@ -77,6 +89,7 @@ export function CardCarousel({
           return (
             <div
               key={player.id}
+              data-index={i}
               className="flex-shrink-0 snap-center transition-all duration-300"
               style={{
                 transform: isActive ? "scale(1)" : "scale(0.88)",

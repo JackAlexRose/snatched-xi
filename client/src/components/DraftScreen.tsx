@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FORMATION_SLOTS, PITCH_SLOTS, DraftablePlayer } from "@/types";
 import { HeaderBar, WheelBanner } from "./HeaderBar";
 import { CardCarousel } from "./CardCarousel";
@@ -58,6 +58,17 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
     ? Math.round(myTeam.filter((s: any) => s.player).reduce((sum: number, s: any) => sum + s.player.overall, 0) / filledCount)
     : null;
 
+  // Collapse pitch drawer when new round starts (squad changes)
+  const prevSquadRef = useRef<string>("");
+  const squadId = squad.length > 0 ? squad.map(p => p.id).join(",").slice(0, 50) : "";
+  useEffect(() => {
+    if (squadId && squadId !== prevSquadRef.current) {
+      prevSquadRef.current = squadId;
+      setPitchExpanded(false);
+      setSelectedPlayerId(null);
+    }
+  }, [squadId]);
+
   return (
     <div className="min-h-[100dvh] bg-cream flex flex-col overflow-hidden">
       {/* Sticky Header */}
@@ -83,10 +94,15 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
         {timerLabel}
       </div>
 
-      {/* Main content — clicking here collapses pitch */}
+      {/* Main content — clicking empty space collapses pitch, but cards don't */}
       <div
         className="flex-1 flex flex-col justify-center min-h-0"
-        onClick={() => setPitchExpanded(false)}
+        onClick={(e) => {
+          // Only collapse if clicking the background, not a card
+          if (e.target === e.currentTarget) {
+            setPitchExpanded(false);
+          }
+        }}
       >
         <CardCarousel
           players={squad}
