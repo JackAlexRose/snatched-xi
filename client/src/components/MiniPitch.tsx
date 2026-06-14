@@ -57,7 +57,7 @@ export function MiniPitch({
       {/* Pitch — only visible when expanded */}
       <div
         className={`relative w-full rounded-xl overflow-hidden border border-[#DCFCE7] transition-all duration-300 ease-out ${
-          collapsed ? "h-0 border-transparent opacity-0" : "aspect-[3/4] max-h-[440px] opacity-100"
+          collapsed ? "h-0 border-transparent opacity-0" : "aspect-[3/4] max-h-[42dvh] opacity-100"
         }`}
         style={{ background: collapsed ? "transparent" : "linear-gradient(180deg, #F0FDF4 0%, #ECFDF5 50%, #F0FDF4 100%)" }}
       >

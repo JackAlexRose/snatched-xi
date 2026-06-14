@@ -61,7 +61,7 @@ export type ServerMessage =
   | { type: "wheel_spin_start"; round: number }
   | { type: "wheel_spin_result"; club: string; season: string; round: number; thinkSeconds: number }
   | { type: "squad_board"; players: DraftablePlayer[]; round: number; timerSeconds: number }
-  | { type: "player_claimed"; playerId: string; playerName: string; claimedPlayer: PlayerSummary; round: number }
+  | { type: "player_claimed"; playerId: string; playerName: string; claimedPlayer: PlayerSummary; slotIndex: number; round: number }
   | { type: "draft_complete"; yourTeam: PlayerSummary[]; opponentTeam: PlayerSummary[] }
   | { type: "match_result"; score: { home: number; away: number }; stats: any; topPerformers: PlayerRating[]; homeTeam: PlayerRating[]; awayTeam: PlayerRating[]; winner: string }
   | { type: "error"; message: string; code: string };

@@ -457,6 +457,9 @@ export class LobbyDO extends DurableObject {
       )!;
     }
     
+    // Find the index of this slot in the team array for exact client placement
+    const exactSlotIndex = player.team.indexOf(slot);
+    
     const playerSummary: PlayerSummary = {
       id: pickedPlayer.id,
       name: pickedPlayer.name,
@@ -481,6 +484,7 @@ export class LobbyDO extends DurableObject {
       playerId: playerId,
       playerName: player.name,
       claimedPlayer: playerSummary,
+      slotIndex: exactSlotIndex,
       round: this.state.currentRound,
     });
 
@@ -528,6 +532,8 @@ export class LobbyDO extends DurableObject {
             slot: slot.slot,
           };
 
+          const autoSlotIndex = player.team.indexOf(slot);
+
           slot.player = playerSummary;
           player.draftPicks.push({
             round: this.state.currentRound,
@@ -542,6 +548,7 @@ export class LobbyDO extends DurableObject {
             playerId: pid,
             playerName: player.name,
             claimedPlayer: playerSummary,
+            slotIndex: autoSlotIndex,
             round: this.state.currentRound,
           });
         }

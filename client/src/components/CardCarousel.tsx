@@ -79,7 +79,7 @@ export function CardCarousel({
 
       <div
         ref={scrollRef}
-        className="flex gap-2 overflow-x-auto snap-x snap-mandatory no-scrollbar px-[calc(50%-80px)]"
+        className="flex gap-2 overflow-x-auto snap-x snap-mandatory no-scrollbar px-[calc(50%-70px)]"
         style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
       >
         {players.map((player, i) => {

@@ -110,10 +110,11 @@ export default function Home() {
           if (msg.playerId === pid) {
             setMyTeam((prev: any[]) => {
               const copy = [...prev];
-              const idx = copy.findIndex((sl: any) =>
-                sl.slot === msg.claimedPlayer.slot && !sl.player
-              );
-              if (idx !== -1) copy[idx] = { ...copy[idx], player: msg.claimedPlayer };
+              // Use exact slot index from server, not findIndex (which picks first matching slot name)
+              const idx = msg.slotIndex;
+              if (idx >= 0 && idx < copy.length && !copy[idx].player) {
+                copy[idx] = { ...copy[idx], player: msg.claimedPlayer };
+              }
               return copy;
             });
           } else {
