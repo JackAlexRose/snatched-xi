@@ -21,17 +21,16 @@ export function CardCarousel({
   const snapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track which card is centered via scroll position
+  // Use hardcoded card dimensions — DOM-measured width varies with scale transforms
+  const CARD_WIDTH = 140; // w-[140px]
+  const GAP = 8;          // gap-2
+  const SNAP_WIDTH = CARD_WIDTH + GAP; // 148px center-to-center
+
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el || players.length === 0) return;
 
-    const cardEl = el.firstElementChild;
-    if (!cardEl) return;
-    const cardWidth = cardEl.getBoundingClientRect().width;
-    const gap = 8; // gap-2 = 0.5rem = 8px
-    const snapWidth = cardWidth + gap;
-
-    const idx = Math.round(el.scrollLeft / snapWidth);
+    const idx = Math.round(el.scrollLeft / SNAP_WIDTH);
     const clamped = Math.max(0, Math.min(players.length - 1, idx));
 
     if (clamped !== activeIndex) {
