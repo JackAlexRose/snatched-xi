@@ -1,4 +1,4 @@
-// Snatched XI — WebSocket Protocol (Tournament Edition)
+// Snatched XI — WebSocket Protocol
 // All messages between client and server
 
 // ── Client → Server ──
@@ -6,24 +6,18 @@
 export interface JoinLobbyMessage {
   type: 'join_lobby';
   playerName: string;
-  teamName?: string;
 }
 
 export interface SubmitBlueprintMessage {
   type: 'submit_blueprint';
-  formation: string;
-  teamName: string;  // e.g. "Red Devils", "FC Nuc"
-}
-
-export interface StartEarlyMessage {
-  type: 'start_early';  // fill remaining slots with bots
+  formation: string;  // "4-4-2", "4-3-3", etc.
 }
 
 export interface DraftPickMessage {
   type: 'draft_pick';
-  playerId: string;
-  slot?: string;
-  slotIndex?: number;
+  playerId: string;   // The selected player's DB id
+  slot?: string;       // Which formation slot to place them in (client-side choice)
+  slotIndex?: number;  // Exact index in the formationSlots array (for duplicate slots)
 }
 
 // ── Server → Client ──
@@ -31,16 +25,24 @@ export interface DraftPickMessage {
 export interface LobbyStateMessage {
   type: 'lobby_state';
   phase: string;
-  players?: { id: string; name: string; isBot: boolean }[];
   yourFormation?: string;
+  opponentFormation?: string;
   currentRound?: number;
   yourTeam?: PlayerSummary[];
+  opponentTeam?: PlayerSummary[];
+  matchResult?: MatchResultMessage;
 }
 
 export interface BlueprintRevealMessage {
   type: 'blueprint_reveal';
   yourFormation: string;
-  players: { id: string; name: string; formation: string; teamName: string }[];
+  opponentFormation: string;
+}
+
+export interface WheelSpinMessage {
+  type: 'wheel_spin';
+  club: string;
+  season: string;
 }
 
 export interface WheelSpinStartMessage {
@@ -65,22 +67,27 @@ export interface SquadBoardMessage {
 
 export interface PlayerClaimedMessage {
   type: 'player_claimed';
-  playerId: string;
-  playerName: string;
+  playerId: string;        // "p1" or "p2" — who made the claim
+  playerName: string;      // Display name of the claiming player
   claimedPlayer: PlayerSummary;
-  slotIndex?: number;
+  slotIndex?: number;       // Exact array index for duplicate slots
   round: number;
+}
+
+export interface TimerTickMessage {
+  type: 'timer_tick';
+  secondsRemaining: number;
 }
 
 export interface DraftCompleteMessage {
   type: 'draft_complete';
   yourTeam: PlayerSummary[];
-  players: { id: string; name: string; teamName: string; team: PlayerSummary[] }[];
+  opponentTeam: PlayerSummary[];
 }
 
 export interface CommentaryEvent {
   minute: number;
-  type: string;
+  type: string;  // 'kickoff' | 'pass' | 'dribble' | 'shot' | 'goal' | 'save' | 'block' | 'miss' | 'tackle' | 'possession' | 'halftime' | 'fulltime'
   player: string;
   team: 'home' | 'away';
   detail?: string;
@@ -90,8 +97,6 @@ export interface CommentaryEvent {
 export interface MatchScriptMessage {
   type: 'match_script';
   events: CommentaryEvent[];
-  homeName: string;
-  awayName: string;
 }
 
 export interface MatchResultMessage {
@@ -107,29 +112,7 @@ export interface MatchResultMessage {
   awayTeam: PlayerRating[];
   homeOvr?: number;
   awayOvr?: number;
-  winner: string;
-  homeName?: string;
-  awayName?: string;
-}
-
-export interface TournamentMatchMessage {
-  type: 'tournament_match';
-  homeId: string;
-  awayId: string;
-  homeName: string;
-  awayName: string;
-  matchNumber: number;
-  totalMatches: number;
-}
-
-export interface TournamentTableMessage {
-  type: 'tournament_table';
-  table: TournamentRow[];
-}
-
-export interface TournamentCompleteMessage {
-  type: 'tournament_complete';
-  table: TournamentRow[];
+  winner: string;  // playerId or 'draw'
 }
 
 export interface ErrorMessage {
@@ -143,7 +126,7 @@ export interface ErrorMessage {
 export interface DraftablePlayer {
   id: string;
   name: string;
-  positions: string[];
+  positions: string[];   // ["CM", "CDM"]
   overall: number;
   pace: number | null;
   shooting: number | null;
@@ -158,29 +141,16 @@ export interface PlayerSummary {
   name: string;
   positions: string[];
   overall: number;
-  slot?: string;
+  slot?: string;  // Where they're placed in formation
 }
 
 export interface PlayerRating {
   playerId: string;
   playerName: string;
   positions?: string[];
-  rating: number;
+  rating: number;   // 0-10 match rating
   goals?: number;
   assists?: number;
-}
-
-export interface TournamentRow {
-  playerId: string;
-  name: string;
-  teamName: string;
-  played: number;
-  won: number;
-  drawn: number;
-  lost: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  points: number;
 }
 
 // ── Union Types ──
@@ -188,22 +158,20 @@ export interface TournamentRow {
 export type ClientMessage = 
   | JoinLobbyMessage 
   | SubmitBlueprintMessage 
-  | StartEarlyMessage
   | DraftPickMessage;
 
 export type ServerMessage =
   | LobbyStateMessage
   | BlueprintRevealMessage
+  | WheelSpinMessage
   | WheelSpinStartMessage
   | WheelSpinResultMessage
   | SquadBoardMessage
   | PlayerClaimedMessage
+  | TimerTickMessage
   | DraftCompleteMessage
   | MatchScriptMessage
   | MatchResultMessage
-  | TournamentMatchMessage
-  | TournamentTableMessage
-  | TournamentCompleteMessage
   | ErrorMessage;
 
 // ── Formation Slot Definitions ──
@@ -218,6 +186,7 @@ export const FORMATION_SLOTS: Record<string, string[]> = {
   '4-5-1':   ['GK', 'LB', 'CB', 'CB', 'RB', 'LM', 'CM', 'CM', 'CM', 'RM', 'ST'],
 };
 
+// Map FIFA positions to formation slots
 export function canPlayInSlot(playerPositions: string[], slot: string): boolean {
   const slotUpper = slot.toUpperCase();
   const posUpper = playerPositions.map(p => p.toUpperCase());
