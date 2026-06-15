@@ -213,13 +213,40 @@ export default function Home() {
   }, [connect]);
 
   const startQuickSim = useCallback(async () => {
-    quickSimRef.current = true;
     setDebug(true);
-    const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/lobby/create", { method: "POST" });
-    const data = await res.json();
-    connect(data.lobbyId, "p1");
-    setTimeout(() => connect(data.lobbyId, "p2", true), 500);
-  }, [connect]);
+    try {
+      const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/quick-sim", { method: "POST" });
+      const data = await res.json();
+      if (data.error) { setError(data.error); return; }
+      
+      // Set teams for result display
+      setMyTeam(data.homeTeam);
+      
+      // Build a match_result-compatible object for ResultScreen
+      setResult({
+        type: "match_result",
+        score: data.result.score,
+        stats: {
+          possession: { home: data.result.possession, away: 100 - data.result.possession },
+          shotsOnTarget: data.result.shotsOnTarget,
+          totalShots: data.result.totalShots,
+        },
+        topPerformers: data.result.topPerformers,
+        homeTeam: data.result.homeTeam,
+        awayTeam: data.result.awayTeam,
+        winner: data.result.winner,
+        homeOvr: data.homeOvr,
+        awayOvr: data.awayOvr,
+      });
+      
+      // Start commentary
+      setCommentaryEvents(data.matchScript);
+      commentaryRef.current = true;
+      setPhase("commentary");
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, []);
 
   const startSpinAnimation = () => {
     const clubs = ["Man United","Liverpool","Chelsea","Arsenal","Man City","Tottenham","Leicester","Everton","West Ham","Newcastle"];
@@ -246,11 +273,14 @@ export default function Home() {
           events={commentaryEvents}
           onComplete={() => {
             commentaryRef.current = false;
-            const res = pendingRef.current || pendingResult;
-            if (res) {
-              setResult(res);
-              setPhase("result");
+            // Quick Sim already has result set; lobby flow stashes it via refs
+            if (!result && (pendingRef.current || pendingResult)) {
+              const res = pendingRef.current || pendingResult;
+              if (res) {
+                setResult(res);
+              }
             }
+            setPhase("result");
           }}
         />
       </main>

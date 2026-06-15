@@ -110,6 +110,65 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
+    // ── Quick Sim ──
+    // Auto-drafts two random teams, runs 1 simulation, returns match script + result.
+    // Used by the Quick Sim dev mode — skips the draft UI entirely.
+    if (path === '/api/quick-sim' && request.method === 'POST') {
+      try {
+        const formations = Object.keys(FORMATION_SLOTS);
+        const homeFormation = formations[Math.floor(Math.random() * formations.length)];
+        let awayFormation = formations[Math.floor(Math.random() * formations.length)];
+        while (awayFormation === homeFormation) {
+          awayFormation = formations[Math.floor(Math.random() * formations.length)];
+        }
+
+        const homeTeam = await autoDraftTeam(homeFormation, env.DB);
+        const awayTeam = await autoDraftTeam(awayFormation, env.DB);
+
+        const homeOvr = Math.round(homeTeam.reduce((s: number, p: any) => s + p.overall, 0) / homeTeam.length);
+        const awayOvr = Math.round(awayTeam.reduce((s: number, p: any) => s + p.overall, 0) / awayTeam.length);
+
+        const sim = simulateMatch(homeTeam, awayTeam, homeFormation, awayFormation);
+
+        const homeSummary = homeTeam.map((p: any) => ({
+          id: p.id, name: p.name, positions: p.positions, overall: p.overall, slot: p.slot,
+        }));
+        const awaySummary = awayTeam.map((p: any) => ({
+          id: p.id, name: p.name, positions: p.positions, overall: p.overall, slot: p.slot,
+        }));
+
+        const homeTeamRatings = sim.topPerformers.filter(p => homeTeam.some(hp => hp.id === p.playerId));
+        const awayTeamRatings = sim.topPerformers.filter(p => awayTeam.some(ap => ap.id === p.playerId));
+
+        return new Response(JSON.stringify({
+          homeFormation,
+          awayFormation,
+          homeTeam: homeSummary,
+          awayTeam: awaySummary,
+          homeOvr,
+          awayOvr,
+          matchScript: sim.matchScript,
+          result: {
+            score: sim.score,
+            possession: sim.possession,
+            shotsOnTarget: sim.shotsOnTarget,
+            totalShots: sim.totalShots,
+            topPerformers: sim.topPerformers,
+            homeTeam: homeTeamRatings,
+            awayTeam: awayTeamRatings,
+            winner: sim.score.home > sim.score.away ? 'home' : sim.score.away > sim.score.home ? 'away' : 'draw',
+          },
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // ── Simulation Tester ──
     // Auto-drafts two random teams, runs 5 simulations, returns all stats.
     if (path === '/api/sim-test' && request.method === 'POST') {
