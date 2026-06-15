@@ -110,81 +110,54 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // ── Quick Sim (Tournament) ──
-    // Auto-drafts 4 random teams, runs 6-match round-robin, returns all commentary + table.
+    // ── Quick Sim ──
+    // Auto-drafts two random teams, runs 1 simulation, returns match script + result.
+    // Used by the Quick Sim dev mode — skips the draft UI entirely.
     if (path === '/api/quick-sim' && request.method === 'POST') {
       try {
         const formations = Object.keys(FORMATION_SLOTS);
-        const teamNames = ["Red Devils", "City Blues", "Gunners FC", "Spurs United"];
-        
-        // Draft 4 teams
-        const teams: any[] = [];
-        for (let i = 0; i < 4; i++) {
-          const formation = formations[Math.floor(Math.random() * formations.length)];
-          const fullTeam = await autoDraftTeam(formation, env.DB);
-          const ovr = Math.round(fullTeam.reduce((s: number, p: any) => s + p.overall, 0) / fullTeam.length);
-          const summary = fullTeam.map((p: any) => ({
-            id: p.id, name: p.name, positions: p.positions, overall: p.overall, slot: p.slot,
-          }));
-          teams.push({
-            id: `p${i + 1}`, name: teamNames[i], teamName: teamNames[i], formation, ovr,
-            players: summary, fullTeam,
-          });
+        const homeFormation = formations[Math.floor(Math.random() * formations.length)];
+        let awayFormation = formations[Math.floor(Math.random() * formations.length)];
+        while (awayFormation === homeFormation) {
+          awayFormation = formations[Math.floor(Math.random() * formations.length)];
         }
 
-        // Round-robin: 6 matches
-        const pairings: [number, number][] = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
-        const matches: any[] = [];
-        
-        // Table tracking
-        const table = teams.map(t => ({
-          id: t.id, name: t.name, teamName: t.teamName,
-          played: 0, won: 0, drawn: 0, lost: 0,
-          goalsFor: 0, goalsAgainst: 0, points: 0,
+        const homeTeam = await autoDraftTeam(homeFormation, env.DB);
+        const awayTeam = await autoDraftTeam(awayFormation, env.DB);
+
+        const homeOvr = Math.round(homeTeam.reduce((s: number, p: any) => s + p.overall, 0) / homeTeam.length);
+        const awayOvr = Math.round(awayTeam.reduce((s: number, p: any) => s + p.overall, 0) / awayTeam.length);
+
+        const sim = simulateMatch(homeTeam, awayTeam, homeFormation, awayFormation);
+
+        const homeSummary = homeTeam.map((p: any) => ({
+          id: p.id, name: p.name, positions: p.positions, overall: p.overall, slot: p.slot,
+        }));
+        const awaySummary = awayTeam.map((p: any) => ({
+          id: p.id, name: p.name, positions: p.positions, overall: p.overall, slot: p.slot,
         }));
 
-        for (const [hi, ai] of pairings) {
-          const home = teams[hi];
-          const away = teams[ai];
-          const sim = simulateMatch(home.fullTeam, away.fullTeam, home.formation, away.formation);
-          
-          const homeRatings = sim.topPerformers.filter((p: any) => home.fullTeam.some((hp: any) => hp.id === p.playerId));
-          const awayRatings = sim.topPerformers.filter((p: any) => away.fullTeam.some((ap: any) => ap.id === p.playerId));
-          
-          // Update table
-          const trHome = table[hi];
-          const trAway = table[ai];
-          trHome.played++; trAway.played++;
-          trHome.goalsFor += sim.score.home; trHome.goalsAgainst += sim.score.away;
-          trAway.goalsFor += sim.score.away; trAway.goalsAgainst += sim.score.home;
-          if (sim.score.home > sim.score.away) { trHome.won++; trHome.points += 3; trAway.lost++; }
-          else if (sim.score.away > sim.score.home) { trAway.won++; trAway.points += 3; trHome.lost++; }
-          else { trHome.drawn++; trAway.drawn++; trHome.points++; trAway.points++; }
-          
-          matches.push({
-            homeId: home.id, awayId: away.id,
-            homeName: home.teamName, awayName: away.teamName,
-            matchScript: sim.matchScript,
-            result: {
-              score: sim.score,
-              possession: sim.possession,
-              shotsOnTarget: sim.shotsOnTarget,
-              totalShots: sim.totalShots,
-              topPerformers: sim.topPerformers,
-              homeTeam: homeRatings, awayTeam: awayRatings,
-              homeOvr: home.ovr, awayOvr: away.ovr,
-              winner: sim.score.home > sim.score.away ? 'home' : sim.score.away > sim.score.home ? 'away' : 'draw',
-            },
-          });
-        }
-
-        // Sort table
-        table.sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst));
+        const homeTeamRatings = sim.topPerformers.filter(p => homeTeam.some(hp => hp.id === p.playerId));
+        const awayTeamRatings = sim.topPerformers.filter(p => awayTeam.some(ap => ap.id === p.playerId));
 
         return new Response(JSON.stringify({
-          teams: teams.map(t => ({ id: t.id, name: t.name, teamName: t.teamName, formation: t.formation, ovr: t.ovr, players: t.players })),
-          matches,
-          table,
+          homeFormation,
+          awayFormation,
+          homeTeam: homeSummary,
+          awayTeam: awaySummary,
+          homeOvr,
+          awayOvr,
+          matchScript: sim.matchScript,
+          result: {
+            score: sim.score,
+            possession: sim.possession,
+            shotsOnTarget: sim.shotsOnTarget,
+            totalShots: sim.totalShots,
+            topPerformers: sim.topPerformers,
+            homeTeam: homeTeamRatings,
+            awayTeam: awayTeamRatings,
+            winner: sim.score.home > sim.score.away ? 'home' : sim.score.away > sim.score.home ? 'away' : 'draw',
+          },
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

@@ -36,8 +36,6 @@ export default function Home() {
   const [lobbyPlayers, setLobbyPlayers] = useState<{ id: string; name: string; isBot: boolean }[]>([]);
   const [tournamentTable, setTournamentTable] = useState<TournamentRow[]>([]);
   const [tournamentMatch, setTournamentMatch] = useState<{ homeName: string; awayName: string; matchNumber: number; totalMatches: number } | null>(null);
-  const [quickSimData, setQuickSimData] = useState<any>(null);
-  const [quickSimMatchIdx, setQuickSimMatchIdx] = useState(0);
   const commentaryRef = useRef(false);
   const pendingRef = useRef<any>(null);
   const quickSimRef = useRef(false);
@@ -211,76 +209,18 @@ export default function Home() {
       const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/quick-sim", { method: "POST" });
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
-      
-      setQuickSimData(data);
-      setQuickSimMatchIdx(0);
-      setTournamentTable(data.table);
-      
-      // Start first match
-      const m = data.matches[0];
-      setTournamentMatch({ homeName: m.homeName, awayName: m.awayName, matchNumber: 1, totalMatches: 6 });
-      setCommentaryEvents(m.matchScript);
-      
-      // Build result object for this match
+      setMyTeam(data.homeTeam);
       setResult({
-        type: "match_result",
-        score: m.result.score,
-        stats: {
-          possession: { home: m.result.possession, away: 100 - m.result.possession },
-          shotsOnTarget: m.result.shotsOnTarget,
-          totalShots: m.result.totalShots,
-        },
-        topPerformers: m.result.topPerformers,
-        homeTeam: m.result.homeTeam,
-        awayTeam: m.result.awayTeam,
-        winner: m.result.winner,
-        homeOvr: m.result.homeOvr,
-        awayOvr: m.result.awayOvr,
-        homeName: m.homeName,
-        awayName: m.awayName,
+        type: "match_result", score: data.result.score,
+        stats: { possession: { home: data.result.possession, away: 100 - data.result.possession }, shotsOnTarget: data.result.shotsOnTarget, totalShots: data.result.totalShots },
+        topPerformers: data.result.topPerformers, homeTeam: data.result.homeTeam, awayTeam: data.result.awayTeam,
+        winner: data.result.winner, homeOvr: data.homeOvr, awayOvr: data.awayOvr,
       });
-      
+      setCommentaryEvents(data.matchScript);
       commentaryRef.current = true;
       setPhase("commentary");
     } catch (err: any) { setError(err.message); }
   }, []);
-
-  // Quick Sim: play next match after commentary completes
-  const advanceQuickSimMatch = useCallback(() => {
-    if (!quickSimData) return;
-    const nextIdx = quickSimMatchIdx + 1;
-    if (nextIdx >= quickSimData.matches.length) {
-      // All done — show final result with table
-      setPhase("result");
-      return;
-    }
-    
-    setQuickSimMatchIdx(nextIdx);
-    const m = quickSimData.matches[nextIdx];
-    setTournamentMatch({ homeName: m.homeName, awayName: m.awayName, matchNumber: nextIdx + 1, totalMatches: 6 });
-    setCommentaryEvents(m.matchScript);
-    
-    setResult({
-      type: "match_result",
-      score: m.result.score,
-      stats: {
-        possession: { home: m.result.possession, away: 100 - m.result.possession },
-        shotsOnTarget: m.result.shotsOnTarget,
-        totalShots: m.result.totalShots,
-      },
-      topPerformers: m.result.topPerformers,
-      homeTeam: m.result.homeTeam,
-      awayTeam: m.result.awayTeam,
-      winner: m.result.winner,
-      homeOvr: m.result.homeOvr,
-      awayOvr: m.result.awayOvr,
-      homeName: m.homeName,
-      awayName: m.awayName,
-    });
-    
-    commentaryRef.current = true;
-    setPhase("commentary");
-  }, [quickSimData, quickSimMatchIdx]);
 
   const startSpinAnimation = () => {
     const clubs = ["Man United","Liverpool","Chelsea","Arsenal","Man City","Tottenham","Leicester","Everton","West Ham","Newcastle"];
@@ -330,11 +270,6 @@ export default function Home() {
           }
           onComplete={() => {
             commentaryRef.current = false;
-            // Quick Sim: advance to next match
-            if (quickSimData) {
-              advanceQuickSimMatch();
-              return;
-            }
             if (!result && (pendingRef.current || pendingResult)) {
               const res = pendingRef.current || pendingResult;
               if (res) setResult(res);
