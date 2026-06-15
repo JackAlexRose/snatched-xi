@@ -10,6 +10,8 @@ import { ServerMessage, FORMATIONS, FORMATION_SLOTS, DraftablePlayer } from "@/t
 
 export default function Home() {
   const [phase, setPhase] = useState<"lobby" | "blueprint" | "draft" | "result" | "simTest">("lobby");
+  const [devTaps, setDevTaps] = useState(0);
+  const [devUnlocked, setDevUnlocked] = useState(false);
   const [lobbyId, setLobbyId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [yourFormation, setYourFormation] = useState<string | null>(null);
@@ -207,13 +209,26 @@ export default function Home() {
         <h1 className="font-bold text-lg text-navy font-display tracking-tight">
           Snatched XI{debug ? " [DEBUG]" : ""}
         </h1>
-        <span className="bg-navy text-white text-[0.65rem] font-bold font-display px-2 py-0.5 rounded-md">
-          {phase === "lobby" ? "LOBBY" : phase === "blueprint" ? "SETUP" : "GAME OVER"}
+        <span
+          onClick={() => {
+            const next = devTaps + 1;
+            setDevTaps(next);
+            if (next >= 5 && !devUnlocked) {
+              setDevUnlocked(true);
+              setDevTaps(0);
+            }
+          }}
+          className={`bg-navy text-white text-[0.65rem] font-bold font-display px-2 py-0.5 rounded-md select-none cursor-pointer transition-all ${
+            devTaps >= 3 && !devUnlocked ? "ring-2 ring-coral/50 scale-105" : ""
+          } ${devUnlocked ? "bg-navy/70" : ""}`}
+          title={devUnlocked ? "dev unlocked" : undefined}
+        >
+          {phase === "lobby" ? "LOBBY" : phase === "blueprint" ? "SETUP" : phase === "simTest" ? "TEST" : "GAME OVER"}
         </span>
         {error && <span className="text-coral text-xs ml-2">{error}</span>}
       </header>
 
-      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} lobbyId={lobbyId} playerId={playerId || ""} />}
+      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} lobbyId={lobbyId} playerId={playerId || ""} devUnlocked={devUnlocked} />}
       {phase === "blueprint" && <BlueprintScreen onLock={(f: string) => sendMessage({ type: "submit_blueprint", formation: f })} />}
       {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} />}
       {phase === "simTest" && <SimTestScreen onBack={() => setPhase("lobby")} />}

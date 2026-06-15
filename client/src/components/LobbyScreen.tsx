@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 
-export function LobbyScreen({ onConnect, onDebug, onSimTest, lobbyId, playerId }: {
+export function LobbyScreen({ onConnect, onDebug, onSimTest, lobbyId, playerId, devUnlocked }: {
   onConnect: (lid: string, pid: string) => void;
   onDebug: () => void;
   onSimTest: () => void;
   lobbyId: string | null;
   playerId: string;
+  devUnlocked: boolean;
 }) {
   const [joinId, setJoinId] = useState("");
 
@@ -50,17 +51,19 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, lobbyId, playerId }
         </div>
       )}
 
-      <div className="border-t border-[#E2E8F0] pt-8 mt-8">
-        <div className="flex flex-col gap-3">
-          <button onClick={onDebug} className="bg-white text-navy border-2 border-dashed border-[#CBD5E1] rounded-xl px-6 py-3 font-display text-sm cursor-pointer hover:border-mint hover:text-mint transition-colors">
-            Debug Mode (vs Bot)
-          </button>
-          <button onClick={onSimTest} className="bg-white text-navy border-2 border-dashed border-[#CBD5E1] rounded-xl px-6 py-3 font-display text-sm cursor-pointer hover:border-coral hover:text-coral transition-colors">
-            Simulation Tester
-          </button>
+      {devUnlocked && (
+        <div className="border-t border-[#E2E8F0] pt-8 mt-8">
+          <div className="flex flex-col gap-3">
+            <button onClick={onDebug} className="bg-white text-navy border-2 border-dashed border-[#CBD5E1] rounded-xl px-6 py-3 font-display text-sm cursor-pointer hover:border-mint hover:text-mint transition-colors">
+              Debug Mode (vs Bot)
+            </button>
+            <button onClick={onSimTest} className="bg-white text-navy border-2 border-dashed border-[#CBD5E1] rounded-xl px-6 py-3 font-display text-sm cursor-pointer hover:border-coral hover:text-coral transition-colors">
+              Simulation Tester
+            </button>
+          </div>
+          <div className="text-slate-soft text-xs mt-2 font-display">Dev tools — test the engine</div>
         </div>
-        <div className="text-slate-soft text-xs mt-2 font-display">Dev tools — test the engine</div>
-      </div>
+      )}
     </div>
   );
 }
