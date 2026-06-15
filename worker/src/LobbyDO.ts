@@ -646,6 +646,10 @@ export class LobbyDO extends DurableObject {
       p => awayTeam.some(ap => ap.id === p.playerId)
     );
     
+    // Compute average team OVRs
+    const homeOvr = Math.round(homeTeam.reduce((s, p) => s + p.overall, 0) / homeTeam.length);
+    const awayOvr = Math.round(awayTeam.reduce((s, p) => s + p.overall, 0) / awayTeam.length);
+    
     // Broadcast result
     this.broadcast({
       type: 'match_result',
@@ -658,6 +662,8 @@ export class LobbyDO extends DurableObject {
       topPerformers: result.topPerformers,
       homeTeam: homeTeamRatings,
       awayTeam: awayTeamRatings,
+      homeOvr,
+      awayOvr,
       winner: result.score.home > result.score.away ? 'p1' 
         : result.score.away > result.score.home ? 'p2' : 'draw',
     });

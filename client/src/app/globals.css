@@ -57,3 +57,13 @@ body {
 /* Scrollbar hide for carousel */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Timer bar stretch-squeeze */
+@keyframes timer-elastic {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.4); }
+}
+.animate-timer-elastic {
+  animation: timer-elastic 2s ease-in-out infinite;
+  transform-origin: center;
+}

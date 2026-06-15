@@ -74,7 +74,7 @@ export function DraftScreen({ sendMessage, myTeam, yourFormation, playerId, squa
         <HeaderBar currentRound={currentRound} timer={timer} opponentMsg={opponentMsg} />
         <div className="h-1 bg-[#E2E8F0]">
           <div
-            className={`h-full transition-all duration-1000 ${timer <= 3 ? "bg-coral" : "bg-mint"}`}
+            className={`h-full transition-all duration-1000 animate-timer-elastic ${timer <= 3 ? "bg-coral" : "bg-mint"}`}
             style={{ width: `${timerMax > 0 ? (timer / timerMax) * 100 : 0}%` }}
           />
         </div>

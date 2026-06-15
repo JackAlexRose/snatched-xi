@@ -16,10 +16,8 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
   const myTeamRatings: PlayerRating[] = (isHome ? result.homeTeam : result.awayTeam).slice(0, 5);
   const oppTeamRatings: PlayerRating[] = (isHome ? result.awayTeam : result.homeTeam).slice(0, 5);
   
-  const filledSlots = myTeam.filter((s: any) => s.player);
-  const myAvgOvr = filledSlots.length > 0
-    ? Math.round(filledSlots.reduce((sum: number, s: any) => sum + s.player.overall, 0) / filledSlots.length)
-    : null;
+  const myAvgOvr = isHome ? result.homeOvr : result.awayOvr;
+  const oppAvgOvr = isHome ? result.awayOvr : result.homeOvr;
 
   const PlayerRow = ({ p }: { p: PlayerRating }) => (
     <div className="flex justify-between items-center py-2.5 px-3 bg-white border border-[#E2E8F0] rounded-lg mb-1.5">
@@ -64,7 +62,7 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
       {/* Opponent */}
       <h3 className="font-display font-bold text-navy text-sm mt-8 mb-3 flex items-center gap-2">
         <span className="w-2 h-2 rounded-full bg-coral inline-block" />
-        Opponent
+        Opponent{oppAvgOvr != null && <span className="text-coral ml-1">{oppAvgOvr} OVR</span>}
       </h3>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatBox value={`${oppStats.poss}%`} label="Possession" />

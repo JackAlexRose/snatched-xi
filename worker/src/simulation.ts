@@ -1,6 +1,6 @@
-// Snatched XI — Match Simulation Engine v2
-// Attribute-based football match resolution with position-weighted shooting
-// and formation matchup modifiers.
+// Snatched XI — Match Simulation Engine v3
+// Attribute-based football match resolution with position-weighted shooting,
+// formation matchup modifiers, defensive pressure, and position-fit penalties.
 
 import { PlayerSummary, PlayerRating } from './protocol';
 
@@ -99,28 +99,28 @@ interface FormationModifier {
 
 const FORMATION_MATCHUPS: Record<string, Record<string, FormationModifier>> = {
   '4-3-3': {
-    '3-5-2':   { possessionBonus: 0.05, attackBonus: -0.03 },  // extra mid but lone ST vs 3 CBs
-    '5-3-2':   { possessionBonus: 0.08, attackBonus: -0.05 },  // dominates mid, struggles to break down
-    '4-4-2':   { possessionBonus: 0.03, attackBonus:  0.02 },  // extra man in midfield
-    '4-2-3-1': { possessionBonus: 0.00, attackBonus:  0.00 },  // mirror match essentially
-    '3-4-3':   { possessionBonus: 0.02, attackBonus:  0.03 },  // both attacking, wide spaces
-    '4-5-1':   { possessionBonus:-0.03, attackBonus: -0.02 },  // 4-5-1 packs midfield
+    '3-5-2':   { possessionBonus: 0.05, attackBonus: -0.03 },
+    '5-3-2':   { possessionBonus: 0.08, attackBonus: -0.05 },
+    '4-4-2':   { possessionBonus: 0.03, attackBonus:  0.02 },
+    '4-2-3-1': { possessionBonus: 0.00, attackBonus:  0.00 },
+    '3-4-3':   { possessionBonus: 0.02, attackBonus:  0.03 },
+    '4-5-1':   { possessionBonus:-0.03, attackBonus: -0.02 },
   },
   '3-5-2': {
-    '4-4-2':   { possessionBonus: 0.05, attackBonus:  0.02 },  // wing-backs overload wide areas
-    '4-3-3':   { possessionBonus:-0.05, attackBonus:  0.03 },  // vulnerability out wide
+    '4-4-2':   { possessionBonus: 0.05, attackBonus:  0.02 },
+    '4-3-3':   { possessionBonus:-0.05, attackBonus:  0.03 },
     '4-2-3-1': { possessionBonus: 0.02, attackBonus:  0.00 },
-    '5-3-2':   { possessionBonus: 0.00, attackBonus: -0.03 },  // two defensive shapes
-    '3-4-3':   { possessionBonus: 0.02, attackBonus:  0.04 },  // both wing-back systems
+    '5-3-2':   { possessionBonus: 0.00, attackBonus: -0.03 },
+    '3-4-3':   { possessionBonus: 0.02, attackBonus:  0.04 },
     '4-5-1':   { possessionBonus: 0.03, attackBonus: -0.02 },
   },
   '4-4-2': {
     '4-3-3':   { possessionBonus:-0.03, attackBonus: -0.02 },
     '3-5-2':   { possessionBonus:-0.05, attackBonus: -0.02 },
-    '4-2-3-1': { possessionBonus:-0.02, attackBonus:  0.02 },  // two-striker threat vs single pivot
+    '4-2-3-1': { possessionBonus:-0.02, attackBonus:  0.02 },
     '5-3-2':   { possessionBonus: 0.00, attackBonus: -0.04 },
     '3-4-3':   { possessionBonus:-0.02, attackBonus:  0.02 },
-    '4-5-1':   { possessionBonus:-0.04, attackBonus:  0.03 },  // direct 2 up top vs packed mid
+    '4-5-1':   { possessionBonus:-0.04, attackBonus:  0.03 },
   },
   '4-2-3-1': {
     '4-3-3':   { possessionBonus: 0.00, attackBonus:  0.00 },
@@ -135,11 +135,11 @@ const FORMATION_MATCHUPS: Record<string, Record<string, FormationModifier>> = {
     '3-5-2':   { possessionBonus:-0.02, attackBonus: -0.04 },
     '4-4-2':   { possessionBonus: 0.02, attackBonus: -0.02 },
     '4-2-3-1': { possessionBonus:-0.01, attackBonus: -0.01 },
-    '5-3-2':   { possessionBonus: 0.05, attackBonus: -0.05 },  // 3 forwards stretching 5 at back
+    '5-3-2':   { possessionBonus: 0.05, attackBonus: -0.05 },
     '4-5-1':   { possessionBonus: 0.02, attackBonus: -0.03 },
   },
   '5-3-2': {
-    '4-3-3':   { possessionBonus:-0.08, attackBonus:  0.05 },  // defensive shape, counter threat
+    '4-3-3':   { possessionBonus:-0.08, attackBonus:  0.05 },
     '3-5-2':   { possessionBonus: 0.00, attackBonus:  0.03 },
     '4-4-2':   { possessionBonus: 0.00, attackBonus:  0.04 },
     '4-2-3-1': { possessionBonus:-0.03, attackBonus:  0.03 },
@@ -156,7 +156,6 @@ const FORMATION_MATCHUPS: Record<string, Record<string, FormationModifier>> = {
   },
 };
 
-// Default neutral modifier for formations not explicitly defined
 const NEUTRAL_MOD: FormationModifier = { possessionBonus: 0, attackBonus: 0 };
 
 function getFormationMod(homeFormation: string, awayFormation: string): FormationModifier {
@@ -164,8 +163,23 @@ function getFormationMod(homeFormation: string, awayFormation: string): Formatio
 }
 
 // ═══════════════════════════════════════════
+// Out-of-position penalty
+// ═══════════════════════════════════════════
+// If a player is placed in a slot that doesn't appear in their natural
+// positions list, apply a 15% attribute penalty. This punishes panicked
+// draft picks — e.g., a pure CAM forced into CM.
+
+function positionFitPenalty(player: FullPlayer): number {
+  // Normalize: uppercase comparison, trim whitespace
+  const naturalPositions = player.positions.map(p => p.trim().toUpperCase());
+  if (naturalPositions.includes(player.slot.toUpperCase())) return 1.0;
+  return 0.85;  // 15% attribute penalty for out-of-position
+}
+
+// ═══════════════════════════════════════════
 // Team strength
 // ═══════════════════════════════════════════
+// Now includes out-of-position penalties. A CAM in a CDM slot gets docked.
 
 function weightedTeamStrength(players: FullPlayer[]): number {
   let total = 0;
@@ -173,12 +187,14 @@ function weightedTeamStrength(players: FullPlayer[]): number {
   
   for (const p of players) {
     const weights = POSITION_WEIGHTS[p.slot] || { overall: 1.0 };
+    const posPenalty = positionFitPenalty(p);
+    
     for (const [attr, weight] of Object.entries(weights)) {
       if (attr === 'overall') {
-        total += p.overall * weight;
+        total += p.overall * weight * posPenalty;
       } else {
         const val = getBaseAttribute(p, attr as any);
-        total += val * weight;
+        total += val * weight * posPenalty;
       }
       weightTotal += weight;
     }
@@ -203,8 +219,24 @@ function pickShooter(team: FullPlayer[]): FullPlayer {
   return team[team.length - 1];
 }
 
-function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
+// ═══════════════════════════════════════════
+// Defensive pressure
+// ═══════════════════════════════════════════
+// Aggregates the defending quality of the back line (CBs, full-backs,
+// wing-backs, CDMs). These are the players most likely to pressure or
+// block a shot. Higher avg defending = more pressure on the shooter.
+
+const PRESSURE_POSITIONS = new Set(['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM']);
+
+function getDefensivePressure(defendingTeam: FullPlayer[]): number {
+  const defenders = defendingTeam.filter(p => PRESSURE_POSITIONS.has(p.slot));
+  if (defenders.length === 0) return 0.15;  // Bare minimum pressure
+  
+  const avgDefending = defenders.reduce(
+    (s, p) => s + getBaseAttribute(p, 'defending'), 0
+  ) / defenders.length;
+  
+  return (avgDefending / 100) * 0.35;
 }
 
 // ═══════════════════════════════════════════
@@ -212,16 +244,14 @@ function clamp(v: number, min: number, max: number): number {
 // ═══════════════════════════════════════════
 
 function pickAssister(team: FullPlayer[], scorer: FullPlayer): FullPlayer | null {
-  // Filter: no GK, no goalscorer
   const candidates = team.filter(
     p => p.slot !== 'GK' && p.id !== scorer.id
   );
   if (candidates.length === 0) return null;
   
-  // Weight by Passing attribute
   const weights = candidates.map(p => {
     const passing = getBaseAttribute(p, 'passing');
-    return Math.max(passing, 1);  // Minimum weight of 1
+    return Math.max(passing, 1);
   });
   const totalWeight = weights.reduce((s, w) => s + w, 0);
   
@@ -231,6 +261,10 @@ function pickAssister(team: FullPlayer[], scorer: FullPlayer): FullPlayer | null
     if (r <= 0) return candidates[i];
   }
   return candidates[candidates.length - 1];
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
 }
 
 // ═══════════════════════════════════════════
@@ -250,7 +284,6 @@ export function simulateMatch(
   const mod = getFormationMod(homeFormation, awayFormation);
   
   // ── Possession ──
-  // Base: passing + dribbling. Modified by formation matchup.
   const homePassAvg = homeTeam.reduce((s, p) => s + getBaseAttribute(p, 'passing'), 0) / 11;
   const awayPassAvg = awayTeam.reduce((s, p) => s + getBaseAttribute(p, 'passing'), 0) / 11;
   const homeDribAvg = homeTeam.reduce((s, p) => s + getBaseAttribute(p, 'dribbling'), 0) / 11;
@@ -264,30 +297,31 @@ export function simulateMatch(
     25, 75
   );
   
-  // ── Expected Goals ──
-  // Based on team strength difference. No home advantage.
+  // ── Expected Goals v3 ──
+  // Divisor changed from /200 to /60 — team quality gaps now punish hard.
+  // A 30-point OVR gap (85 vs 55) gives xG of 1.8 vs 0.6 (was 1.38 vs 1.02).
+  // Randomness reduced from ±30% to ±12% — the players, not RNG, decide the game.
+  
   const strengthDiff = homeStrength - awayStrength;
   const baseXg = 1.2;
   
-  // Apply formation attack bonus to xG
   const homeXg = clamp(
-    baseXg * (1 + strengthDiff / 200) * (1 + mod.attackBonus),
+    baseXg * (1 + strengthDiff / 60) * (1 + mod.attackBonus),
     0.3, 4.0
   );
   const awayXg = clamp(
-    baseXg * (1 - strengthDiff / 200) * (1 - mod.attackBonus),
+    baseXg * (1 - strengthDiff / 60) * (1 - mod.attackBonus),
     0.3, 4.0
   );
   
-  // Randomness (±30%)
-  const homeXgRandom = homeXg * (0.7 + Math.random() * 0.6);
-  const awayXgRandom = awayXg * (0.7 + Math.random() * 0.6);
+  // Randomness ±12% (was ±30%)
+  const homeXgRandom = homeXg * (0.88 + Math.random() * 0.24);
+  const awayXgRandom = awayXg * (0.88 + Math.random() * 0.24);
   
-  // ── Shot Resolution ──
+  // ── Shot Resolution v3 ──
   let homeGoals = 0;
   let awayGoals = 0;
   
-  // Track who scored / assisted for ratings
   const homeScorers: FullPlayer[] = [];
   const awayScorers: FullPlayer[] = [];
   const homeAssisters: FullPlayer[] = [];
@@ -296,6 +330,10 @@ export function simulateMatch(
   const homeChances = Math.round(homeXgRandom * 3 + Math.random() * 4);
   const awayChances = Math.round(awayXgRandom * 3 + Math.random() * 4);
   
+  // Pre-compute defensive pressure (constant across all shots in a match)
+  const homeDefPressure = getDefensivePressure(homeTeam);
+  const awayDefPressure = getDefensivePressure(awayTeam);
+  
   // Home team shoots
   const awayGk = awayTeam.find(p => p.slot === 'GK')!;
   for (let i = 0; i < homeChances; i++) {
@@ -303,11 +341,11 @@ export function simulateMatch(
     const shotQuality = getBaseAttribute(shooter, 'shooting') / 100;
     const saveQuality = fullAttr(awayGk.overall, awayGk.overall) / 100;
     
-    if (Math.random() < shotQuality * 0.7 - saveQuality * 0.3 + 0.2) {
+    // v3: Defensive pressure + boosted GK weight (0.35 vs 0.30) + reduced flat bonus (0.15 vs 0.20)
+    if (Math.random() < shotQuality * 0.7 - saveQuality * 0.35 - awayDefPressure + 0.15) {
       homeGoals++;
       homeScorers.push(shooter);
       
-      // Pick assister (weighted by Passing, excludes GK + scorer)
       const assister = pickAssister(homeTeam, shooter);
       if (assister) {
         homeAssisters.push(assister);
@@ -322,7 +360,7 @@ export function simulateMatch(
     const shotQuality = getBaseAttribute(shooter, 'shooting') / 100;
     const saveQuality = fullAttr(homeGk.overall, homeGk.overall) / 100;
     
-    if (Math.random() < shotQuality * 0.7 - saveQuality * 0.3 + 0.2) {
+    if (Math.random() < shotQuality * 0.7 - saveQuality * 0.35 - homeDefPressure + 0.15) {
       awayGoals++;
       awayScorers.push(shooter);
       
@@ -344,14 +382,13 @@ export function simulateMatch(
     away: shotsOnTarget.away + Math.floor(Math.random() * 4),
   };
   
-  // ── Player Ratings (Dynamic — based on match performance) ──
+  // ── Player Ratings (Dynamic — position-aware performance modifiers) ──
   const topPerformers: PlayerRating[] = [];
   const allPlayers = [
     ...homeTeam.map(p => ({ ...p, team: 'home' as const, goalsConceded: awayGoals })),
     ...awayTeam.map(p => ({ ...p, team: 'away' as const, goalsConceded: homeGoals })),
   ];
   
-  // Count goals + assists per player
   const goalCount = new Map<string, number>();
   const assistCount = new Map<string, number>();
   for (const s of homeScorers) goalCount.set(s.id, (goalCount.get(s.id) || 0) + 1);
@@ -359,7 +396,6 @@ export function simulateMatch(
   for (const a of homeAssisters) assistCount.set(a.id, (assistCount.get(a.id) || 0) + 1);
   for (const a of awayAssisters) assistCount.set(a.id, (assistCount.get(a.id) || 0) + 1);
   
-  // Team-level metrics
   const homePossPct = homePossession;
   const awayPossPct = 100 - homePossession;
   
@@ -370,55 +406,39 @@ export function simulateMatch(
     const conceded = (p as any).goalsConceded as number;
     const slot = p.slot;
     
-    // Base: OVR-weighted starting point
     let rating = 6.0 + (p.overall - 70) / 20 + (Math.random() - 0.5) * 1.5;
     
-    // ── Attacking contribution (all positions) ──
-    rating += goals * 1.0;          // +1.0 per goal
-    rating += assists * 0.5;        // +0.5 per assist
+    rating += goals * 1.0;
+    rating += assists * 0.5;
     
-    // ── Position-specific modifiers ──
     if (slot === 'GK') {
-      // Goalkeeper: heavily penalised for conceding, rewarded for clean sheets
       rating -= conceded * 0.4;
-      if (conceded === 0) rating += 1.5;  // Clean sheet bonus
-      // Good distribution boosts rating slightly
+      if (conceded === 0) rating += 1.5;
       const passAttr = getBaseAttribute(p, 'passing');
       if (passAttr > 70) rating += 0.3;
     } else if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(slot)) {
-      // Defenders: penalised for goals conceded, rewarded for clean sheets
       rating -= conceded * 0.35;
       if (conceded === 0) rating += 0.8;
-      // Good passing from the back
       const passAttr = getBaseAttribute(p, 'passing');
       if (passAttr > 75) rating += 0.2;
-      // If team had good possession, defenders weren't under siege
       if (teamPoss > 55) rating += 0.2;
       if (teamPoss < 40) rating -= 0.2;
     } else if (['CDM'].includes(slot)) {
-      // Defensive mids: slightly penalised for conceding
       rating -= conceded * 0.2;
       if (conceded === 0) rating += 0.5;
-      // Possession matters for CDMs
       if (teamPoss > 55) rating += 0.3;
       if (teamPoss < 40) rating -= 0.3;
     } else if (['CM', 'LM', 'RM'].includes(slot)) {
-      // Central/wide mids: driven by possession and creative output
       if (teamPoss > 55) rating += 0.3;
       if (teamPoss < 40) rating -= 0.2;
-      // Passing quality bonus
       const passAttr = getBaseAttribute(p, 'passing');
       if (passAttr > 80) rating += 0.2;
     } else if (['CAM'].includes(slot)) {
-      // Attacking mids: goals + assists matter most, possession helps
       if (teamPoss > 55) rating += 0.3;
-      if (goals === 0 && assists === 0) rating -= 0.3;  // Ghost game penalty
+      if (goals === 0 && assists === 0) rating -= 0.3;
     } else {
-      // Forwards (ST, CF, LW, RW): goals are everything
-      if (goals === 0 && assists === 0) rating -= 0.4;  // Ghost game penalty
-      // Multiple goals = star performance
+      if (goals === 0 && assists === 0) rating -= 0.4;
       if (goals >= 2) rating += 0.5;
-      // Hattrick bonus
       if (goals >= 3) rating += 0.5;
     }
     

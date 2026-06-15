@@ -12,6 +12,14 @@ const STAT_LABELS: [string, keyof DraftablePlayer][] = [
   ["PHY", "physicality"],
 ];
 
+function getPositionColor(player: DraftablePlayer) {
+  const pos = player.positions[0]?.toUpperCase() || "";
+  if (pos === "GK") return { bg: "from-[#EFF6FF] to-[#DBEAFE]", border: "border-[#BFDBFE]", badge: "bg-blue-600" };
+  if (["CB","LB","RB","LWB","RWB"].includes(pos)) return { bg: "from-[#F0FDF4] to-[#DCFCE7]", border: "border-[#BBF7D0]", badge: "bg-emerald-600" };
+  if (["CDM","CM","CAM","LM","RM"].includes(pos)) return { bg: "from-[#FFFBEB] to-[#FEF3C7]", border: "border-[#FDE68A]", badge: "bg-amber-500" };
+  return { bg: "from-[#FFF1F2] to-[#FFE4E6]", border: "border-[#FECDD3]", badge: "bg-rose-500" };
+}
+
 export function PlayerCard({
   player,
   isSelected,
@@ -27,11 +35,12 @@ export function PlayerCard({
   scale?: number;
   faded?: boolean;
 }) {
+  const posColor = getPositionColor(player);
   const borderColor = isSelected
     ? "border-[#10B981] shadow-[0_0_12px_rgba(16,185,129,0.3)]"
     : isClaimed
       ? "border-[#CBD5E1] opacity-40"
-      : "border-[#E2E8F0] hover:border-[#94A3B8]";
+      : `${posColor.border} hover:border-[#94A3B8]`;
 
   const cursor = isClaimed ? "cursor-not-allowed" : "cursor-pointer";
 
@@ -39,8 +48,8 @@ export function PlayerCard({
     <div
       onClick={isClaimed ? undefined : onClick}
       className={`
-        flex-shrink-0 w-[140px] min-h-[240px] rounded-2xl border-2 ${borderColor} ${cursor}
-        bg-gradient-to-b from-[#FEFCE8] to-[#FFFBEB]
+        flex-shrink-0 w-[140px] min-h-[260px] rounded-2xl border-2 ${borderColor} ${cursor}
+        bg-gradient-to-b ${posColor.bg}
         transition-all duration-300 flex flex-col
         ${faded ? "opacity-50" : "opacity-100"}
       `}
@@ -49,14 +58,14 @@ export function PlayerCard({
       {/* Top section: Avatar + OVR badge */}
       <div className="flex flex-col items-center pt-6 pb-3 relative">
         <PlayerAvatar name={player.name} size={56} />
-        <div className="absolute top-4 right-3 bg-navy text-white text-[0.7rem] font-bold rounded-lg px-2 py-0.5 font-display">
+        <div className={`absolute top-4 right-3 ${posColor.badge} text-white text-[0.7rem] font-bold rounded-lg px-2 py-0.5 font-display`}>
           {player.overall}
         </div>
       </div>
 
-      {/* Middle: Name + Position */}
+      {/* Middle: Name (2 lines) + Position */}
       <div className="px-3 text-center flex-1">
-        <div className="font-display font-bold text-[0.75rem] text-navy leading-tight truncate">
+        <div className="font-display font-bold text-[0.75rem] text-navy leading-tight line-clamp-2 min-h-[2.5em]">
           {isClaimed ? "TAKEN" : player.name}
         </div>
         <div className="text-slate-soft text-[0.6rem] font-display mt-0.5 mb-3">
