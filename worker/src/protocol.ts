@@ -10,7 +10,8 @@ export interface JoinLobbyMessage {
 
 export interface SubmitBlueprintMessage {
   type: 'submit_blueprint';
-  formation: string;  // "4-4-2", "4-3-3", etc.
+  formation: string;
+  teamName?: string;
 }
 
 export interface DraftPickMessage {
@@ -37,6 +38,7 @@ export interface BlueprintRevealMessage {
   type: 'blueprint_reveal';
   yourFormation: string;
   opponentFormation: string;
+  opponentTeamName?: string;
 }
 
 export interface WheelSpinMessage {

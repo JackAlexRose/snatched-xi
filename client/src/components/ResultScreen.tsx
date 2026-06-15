@@ -3,11 +3,19 @@
 import { PlayerRating } from "@/types";
 import { PlayerAvatar } from "./PlayerAvatar";
 
-export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumber, totalMatches }: { result: any; playerId: string | null; myTeam: any[]; seriesScore?: { p1: number; p2: number } | null; matchNumber?: number; totalMatches?: number }) {
+export function ResultScreen({ result, playerId, myTeam, seasonScore, matchNumber, totalMatches, myTeamName, oppTeamName, isSeasonFinal }: {
+  result: any;
+  playerId: string | null;
+  myTeam: any[];
+  seasonScore?: { p1: number; p2: number } | null;
+  matchNumber?: number;
+  totalMatches?: number;
+  myTeamName?: string;
+  oppTeamName?: string;
+  isSeasonFinal?: boolean;
+}) {
   const isQuickSim = !playerId;
   const isHome = playerId === "p1";
-
-  // Determine which stats belong to which side
   const showAsHome = isQuickSim ? true : isHome;
   const myScore = showAsHome ? result.score.home : result.score.away;
   const oppScore = showAsHome ? result.score.away : result.score.home;
@@ -19,11 +27,16 @@ export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumbe
     : { poss: result.stats.possession.home, sot: result.stats.shotsOnTarget.home, shots: result.stats.totalShots.home };
   const myTeamRatings: PlayerRating[] = (showAsHome ? result.homeTeam : result.awayTeam).slice(0, 5);
   const oppTeamRatings: PlayerRating[] = (showAsHome ? result.awayTeam : result.homeTeam).slice(0, 5);
-  
   const myAvgOvr = showAsHome ? result.homeOvr : result.awayOvr;
   const oppAvgOvr = showAsHome ? result.awayOvr : result.homeOvr;
 
-  // Result labels
+  // Labels
+  const myLabel = myTeamName || (isQuickSim ? `Home · ${myAvgOvr ?? "?"} OVR` : "Your Team");
+  const oppLabel = oppTeamName || (isQuickSim ? `Away · ${oppAvgOvr ?? "?"} OVR` : "Opponent");
+  const myDot = isQuickSim ? "bg-coral" : "bg-mint";
+  const oppDot = isQuickSim ? "bg-mint" : "bg-coral";
+
+  // Result text
   let resultColor: string;
   let resultText: string;
   if (isQuickSim) {
@@ -36,14 +49,40 @@ export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumbe
     else { resultColor = "text-coral"; resultText = "You Lose"; }
   }
 
-  const myLabel = isQuickSim
-    ? `Home · ${myAvgOvr ?? "?"} OVR`
-    : `Your Team (you)`;
-  const oppLabel = isQuickSim
-    ? `Away · ${oppAvgOvr ?? "?"} OVR`
-    : `Opponent (them)`;
-  const myDot = isQuickSim ? "bg-coral" : "bg-mint";
-  const oppDot = isQuickSim ? "bg-mint" : "bg-coral";
+  // Season final banner
+  if (isSeasonFinal && seasonScore) {
+    const p1Won = seasonScore.p1 > seasonScore.p2;
+    const isDraw = seasonScore.p1 === seasonScore.p2;
+    const youWon = playerId === "p1" ? p1Won : !p1Won;
+    const seasonColor = isDraw ? "text-slate-soft" : youWon ? "text-mint" : "text-coral";
+    const seasonText = isDraw ? "Season Drawn" : youWon ? "You Won the Season!" : "You Lost the Season";
+
+    return (
+      <div className="max-w-md mx-auto mt-8 px-6 text-center">
+        <div className="text-6xl font-display font-bold mb-4">{seasonScore.p1} – {seasonScore.p2}</div>
+        <div className={`text-2xl font-display font-bold mb-8 ${seasonColor}`}>{seasonText}</div>
+
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 mb-8 shadow-sm">
+          <div className="text-slate-soft text-xs font-display mb-3">Season Results</div>
+          <div className="flex items-center justify-center gap-6 font-display text-sm text-navy">
+            <div>
+              <span className="font-bold">{myTeamName || (playerId === "p1" ? "Home" : "Away")}</span>
+              <div className="text-lg font-bold mt-1">{seasonScore.p1}</div>
+            </div>
+            <span className="text-slate-soft">–</span>
+            <div>
+              <span className="font-bold">{oppTeamName || (playerId === "p1" ? "Away" : "Home")}</span>
+              <div className="text-lg font-bold mt-1">{seasonScore.p2}</div>
+            </div>
+          </div>
+        </div>
+
+        <button onClick={() => location.reload()} className="w-full bg-navy text-white rounded-xl px-6 py-3 font-display font-bold cursor-pointer hover:bg-navy/90 transition-colors">
+          Play Again
+        </button>
+      </div>
+    );
+  }
 
   const PlayerRow = ({ p }: { p: PlayerRating }) => (
     <div className="flex justify-between items-center py-2.5 px-3 bg-white border border-[#E2E8F0] rounded-lg mb-1.5">
@@ -72,28 +111,19 @@ export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumbe
         )}
       </div>
 
-      {/* Series score */}
-      {seriesScore && (
+      {/* Season score (running) */}
+      {seasonScore && !isSeasonFinal && (
         <div className="text-center mb-6 pb-4 border-b border-[#E2E8F0]">
-          <div className="text-slate-soft text-xs font-display mb-1">Series</div>
+          <div className="text-slate-soft text-xs font-display mb-1">Season</div>
           <div className="inline-flex items-center gap-3 font-display font-bold text-lg text-navy">
-            <span className={seriesScore.p1 > seriesScore.p2 ? "text-mint" : seriesScore.p1 === seriesScore.p2 ? "text-slate-soft" : "text-coral"}>
-              {seriesScore.p1}
+            <span className={seasonScore.p1 > seasonScore.p2 ? "text-mint" : seasonScore.p1 === seasonScore.p2 ? "text-slate-soft" : "text-coral"}>
+              {seasonScore.p1}
             </span>
             <span className="text-slate-soft text-sm">–</span>
-            <span className={seriesScore.p2 > seriesScore.p1 ? "text-mint" : seriesScore.p2 === seriesScore.p1 ? "text-slate-soft" : "text-coral"}>
-              {seriesScore.p2}
+            <span className={seasonScore.p2 > seasonScore.p1 ? "text-mint" : seasonScore.p2 === seasonScore.p1 ? "text-slate-soft" : "text-coral"}>
+              {seasonScore.p2}
             </span>
           </div>
-          {playerId && (
-            <div className="text-xs font-display mt-1 font-bold text-navy">
-              {seriesScore.p1 > seriesScore.p2
-                ? (playerId === "p1" ? "You win the series!" : "You lose the series")
-                : seriesScore.p2 > seriesScore.p1
-                  ? (playerId === "p2" ? "You win the series!" : "You lose the series")
-                  : "Series drawn"}
-            </div>
-          )}
         </div>
       )}
 
@@ -101,7 +131,7 @@ export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumbe
       <h3 className="font-display font-bold text-navy text-sm mb-3 flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full inline-block ${myDot}`} />
         {myLabel}
-        {!isQuickSim && myAvgOvr != null && <span className="text-coral font-bold ml-1">{myAvgOvr} OVR</span>}
+        {!myTeamName && myAvgOvr != null && <span className="text-coral font-bold ml-1">{myAvgOvr} OVR</span>}
       </h3>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatBox value={`${myStats.poss}%`} label="Possession" />
@@ -114,7 +144,7 @@ export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumbe
       <h3 className="font-display font-bold text-navy text-sm mt-8 mb-3 flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full inline-block ${oppDot}`} />
         {oppLabel}
-        {!isQuickSim && oppAvgOvr != null && <span className="text-coral ml-1">{oppAvgOvr} OVR</span>}
+        {!oppTeamName && oppAvgOvr != null && <span className="text-coral ml-1">{oppAvgOvr} OVR</span>}
       </h3>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatBox value={`${oppStats.poss}%`} label="Possession" />

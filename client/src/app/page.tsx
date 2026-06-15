@@ -35,7 +35,10 @@ export default function Home() {
   const [pendingResult, setPendingResult] = useState<any>(null);
   const [matchNumber, setMatchNumber] = useState(0);
   const [totalMatches, setTotalMatches] = useState(3);
-  const [seriesScore, setSeriesScore] = useState<{ p1: number; p2: number } | null>(null);
+  const [seasonScore, setSeasonScore] = useState<{ p1: number; p2: number } | null>(null);
+  const [myTeamName, setMyTeamName] = useState<string | null>(null);
+  const [oppTeamName, setOppTeamName] = useState<string | null>(null);
+  const [isSeasonFinal, setIsSeasonFinal] = useState(false);
   const [quickSimMatches, setQuickSimMatches] = useState<any[]>([]);
   const [quickSimMatchIdx, setQuickSimMatchIdx] = useState(0);
   const commentaryRef = useRef(false);
@@ -98,6 +101,7 @@ export default function Home() {
         case "blueprint_reveal":
           setYourFormation(msg.yourFormation);
           setOpponentFormation(msg.opponentFormation);
+          if ((msg as any).opponentTeamName) setOppTeamName((msg as any).opponentTeamName);
           setMyTeam((FORMATION_SLOTS[msg.yourFormation] || []).map((s: string) => ({ slot: s, player: null })));
           setPhase("draft");
           // Quick sim: auto-submit formation immediately
@@ -156,7 +160,8 @@ export default function Home() {
         case "draft_complete":
           setMyTeam(msg.yourTeam);
           setTimer(0); setTimerLabel("Simulating match...");
-          setSeriesScore(null);
+          setSeasonScore(null);
+          setIsSeasonFinal(false);
           break;
         case "match_script":
           setCommentaryEvents(msg.events);
@@ -176,7 +181,8 @@ export default function Home() {
           }
           break;
         case "series_result":
-          setSeriesScore(msg.seriesScore);
+          setSeasonScore(msg.seriesScore);
+          setIsSeasonFinal(true);
           setPhase("result");
           break;
         case "error":
@@ -232,7 +238,7 @@ export default function Home() {
       setMyTeam(data.homeTeam);
       setQuickSimMatches(data.matches);
       setQuickSimMatchIdx(0);
-      setSeriesScore(data.seriesScore);
+      setSeasonScore(data.seriesScore);
       setTotalMatches(3);
       
       // Start first match
@@ -262,6 +268,15 @@ export default function Home() {
       winner: m.result.winner, homeOvr: m.result.homeOvr, awayOvr: m.result.awayOvr,
       matchNumber: fromIdx + 1, totalMatches: 3,
     });
+    // Compute running season score from matches played so far
+    let p1W = 0, p2W = 0;
+    for (let i = 0; i <= fromIdx; i++) {
+      const r = quickSimMatches[i].result;
+      if (r.winner === 'home') p1W++;
+      else if (r.winner === 'away') p2W++;
+    }
+    setSeasonScore({ p1: p1W, p2: p2W });
+    setIsSeasonFinal(fromIdx >= 2);
     setPhase("result");
   }, [quickSimMatches]);
 
@@ -311,14 +326,18 @@ export default function Home() {
         <CommentaryFeed
           events={commentaryEvents}
           homeLabel={
-            playerId
-              ? (playerId === "p1" ? `Your XI · ${result?.homeOvr ?? "?"} OVR (you)` : `Opponent · ${result?.homeOvr ?? "?"} OVR (them)`)
-              : `Home · ${result?.homeOvr ?? "?"} OVR`
+            myTeamName || (
+              playerId
+                ? (playerId === "p1" ? `Your XI · ${result?.homeOvr ?? "?"} OVR` : `Opponent · ${result?.homeOvr ?? "?"} OVR`)
+                : `Home · ${result?.homeOvr ?? "?"} OVR`
+            )
           }
           awayLabel={
-            playerId
-              ? (playerId === "p2" ? `Your XI · ${result?.awayOvr ?? "?"} OVR (you)` : `Opponent · ${result?.awayOvr ?? "?"} OVR (them)`)
-              : `Away · ${result?.awayOvr ?? "?"} OVR`
+            oppTeamName || (
+              playerId
+                ? (playerId === "p2" ? `Your XI · ${result?.awayOvr ?? "?"} OVR` : `Opponent · ${result?.awayOvr ?? "?"} OVR`)
+                : `Away · ${result?.awayOvr ?? "?"} OVR`
+            )
           }
           onComplete={() => {
             commentaryRef.current = false;
@@ -384,8 +403,8 @@ export default function Home() {
       </header>
 
       {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} onQuickSim={startQuickSim} lobbyId={lobbyId} playerId={playerId || ""} devUnlocked={devUnlocked} />}
-      {phase === "blueprint" && <BlueprintScreen onLock={(f: string) => sendMessage({ type: "submit_blueprint", formation: f })} />}
-      {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} seriesScore={seriesScore} matchNumber={matchNumber} totalMatches={totalMatches} />}
+      {phase === "blueprint" && <BlueprintScreen onLock={(f, t) => { setMyTeamName(t); sendMessage({ type: "submit_blueprint", formation: f, teamName: t }); }} />}
+      {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} seasonScore={seasonScore} matchNumber={matchNumber} totalMatches={totalMatches} myTeamName={myTeamName ?? undefined} oppTeamName={oppTeamName ?? undefined} isSeasonFinal={isSeasonFinal} />}
       {phase === "simTest" && <SimTestScreen onBack={() => setPhase("lobby")} />}
     </main>
   );

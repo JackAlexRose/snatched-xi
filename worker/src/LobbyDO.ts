@@ -21,8 +21,9 @@ const VALID_FORMATIONS = Object.keys(FORMATION_SLOTS);
 // ── State Types ──
 
 interface PlayerState {
-  id: string;          // "p1" or "p2"
+  id: string;
   name: string;
+  teamName?: string;
   formation?: string;
   draftPicks: DraftPick[];
   team: PlayerSlot[];   // 11 slots filled during draft
@@ -175,7 +176,7 @@ export class LobbyDO extends DurableObject {
         await this.handleJoin(ws, playerId, msg.playerName);
         break;
       case 'submit_blueprint':
-        await this.handleSubmitBlueprint(ws, playerId, msg.formation);
+        await this.handleSubmitBlueprint(ws, playerId, msg.formation, (msg as any).teamName);
         break;
       case 'draft_pick':
         await this.handleDraftPick(ws, playerId, msg.playerId, (msg as any).slot, (msg as any).slotIndex);
@@ -296,7 +297,7 @@ export class LobbyDO extends DurableObject {
     }
   }
   
-  private async handleSubmitBlueprint(ws: WebSocket, playerId: string, formation: string): Promise<void> {
+  private async handleSubmitBlueprint(ws: WebSocket, playerId: string, formation: string, teamName?: string): Promise<void> {
     if (this.state.phase !== 'BLUEPRINT') {
       this.sendError(ws, 'Not in blueprint phase', 'WRONG_PHASE');
       return;
@@ -314,6 +315,7 @@ export class LobbyDO extends DurableObject {
     }
     
     player.formation = formation;
+    if (teamName) player.teamName = teamName;
     
     // Initialize empty team slots
     player.team = FORMATION_SLOTS[formation].map(slot => ({
@@ -336,12 +338,14 @@ export class LobbyDO extends DurableObject {
         type: 'blueprint_reveal',
         yourFormation: p1.formation!,
         opponentFormation: p2.formation!,
+        opponentTeamName: p2.teamName,
       });
       
       this.broadcastToPlayer('p2', {
         type: 'blueprint_reveal',
         yourFormation: p2.formation!,
         opponentFormation: p1.formation!,
+        opponentTeamName: p1.teamName,
       });
       
       // Start first draft round
