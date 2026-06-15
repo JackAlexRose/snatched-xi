@@ -1,7 +1,9 @@
 // Snatched XI — Cloudflare Worker Entry Point
-// Routes: create lobby, join lobby, WebSocket upgrades
+// Routes: create lobby, join lobby, WebSocket upgrades, sim tester
 
 import { DurableObjectNamespace, D1Database } from 'cloudflare:workers';
+import { simulateMatch } from './simulation';
+import { canPlayInSlot, FORMATION_SLOTS, DraftablePlayer, PlayerSummary } from './protocol';
 
 export { LobbyDO } from './LobbyDO';
 
@@ -20,6 +22,77 @@ function generateLobbyId(): string {
   return id;
 }
 
+// ── Auto-draft helper ──
+// Fetches random players from D1 and fills a full formation roster.
+
+async function autoDraftTeam(formation: string, db: D1Database): Promise<any[]> {
+  const slots = FORMATION_SLOTS[formation];
+  // Fetch a big pool of random players to fill slots from
+  const poolResult = await db.prepare(
+    'SELECT id, name, positions, overall, pace, shooting, passing, dribbling, defending, physicality FROM players ORDER BY RANDOM() LIMIT 120'
+  ).all<DraftablePlayer>();
+
+  const pool: any[] = poolResult.results.map((p: any) => ({
+    ...p,
+    positions: typeof p.positions === 'string' 
+      ? p.positions.split(',').map((s: string) => s.trim()) 
+      : (p.positions as unknown as string[]),
+  }));
+
+  const used = new Set<string>();
+  const team: any[] = [];
+
+  for (const slot of slots) {
+    // Find a compatible player not yet used
+    const match = pool.find(
+      p => !used.has(p.id) && canPlayInSlot(p.positions, slot)
+    );
+    if (match) {
+      used.add(match.id);
+      team.push({
+        id: match.id,
+        name: match.name,
+        positions: match.positions,
+        overall: match.overall,
+        pace: match.pace,
+        shooting: match.shooting,
+        passing: match.passing,
+        dribbling: match.dribbling,
+        defending: match.defending,
+        physicality: match.physicality,
+        slot,
+      });
+    }
+  }
+
+  // If any slots are still unfilled (unlikely with 120 pool), fill from remaining pool
+  if (team.length < 11) {
+    const filledSlots = new Set(team.map(p => p.slot));
+    for (const slot of slots) {
+      if (filledSlots.has(slot)) continue;
+      const match = pool.find(p => !used.has(p.id));
+      if (match) {
+        used.add(match.id);
+        team.push({
+          id: match.id,
+          name: match.name,
+          positions: match.positions,
+          overall: match.overall,
+          pace: match.pace,
+          shooting: match.shooting,
+          passing: match.passing,
+          dribbling: match.dribbling,
+          defending: match.defending,
+          physicality: match.physicality,
+          slot,
+        });
+      }
+    }
+  }
+
+  return team;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -35,6 +108,75 @@ export default {
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
+    }
+
+    // ── Simulation Tester ──
+    // Auto-drafts two random teams, runs 5 simulations, returns all stats.
+    if (path === '/api/sim-test' && request.method === 'POST') {
+      try {
+        const formations = Object.keys(FORMATION_SLOTS);
+        const homeFormation = formations[Math.floor(Math.random() * formations.length)];
+        let awayFormation = formations[Math.floor(Math.random() * formations.length)];
+        // Avoid mirror match
+        while (awayFormation === homeFormation) {
+          awayFormation = formations[Math.floor(Math.random() * formations.length)];
+        }
+
+        const homeTeam = await autoDraftTeam(homeFormation, env.DB);
+        const awayTeam = await autoDraftTeam(awayFormation, env.DB);
+
+        const homeOvr = Math.round(homeTeam.reduce((s: number, p: any) => s + p.overall, 0) / homeTeam.length);
+        const awayOvr = Math.round(awayTeam.reduce((s: number, p: any) => s + p.overall, 0) / awayTeam.length);
+
+        // Run 5 simulations
+        const results = [];
+        let homeWins = 0, awayWins = 0, draws = 0;
+        let totalHomeGoals = 0, totalAwayGoals = 0;
+
+        for (let i = 0; i < 5; i++) {
+          const sim = simulateMatch(homeTeam, awayTeam, homeFormation, awayFormation);
+          results.push(sim);
+          totalHomeGoals += sim.score.home;
+          totalAwayGoals += sim.score.away;
+          if (sim.score.home > sim.score.away) homeWins++;
+          else if (sim.score.away > sim.score.home) awayWins++;
+          else draws++;
+        }
+
+        // Strip full attribute objects from team summaries (client only needs summaries)
+        const homeSummary = homeTeam.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          positions: p.positions,
+          overall: p.overall,
+          slot: p.slot,
+        }));
+        const awaySummary = awayTeam.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          positions: p.positions,
+          overall: p.overall,
+          slot: p.slot,
+        }));
+
+        return new Response(JSON.stringify({
+          homeFormation,
+          awayFormation,
+          homeTeam: homeSummary,
+          awayTeam: awaySummary,
+          homeOvr,
+          awayOvr,
+          results,
+          summary: { homeWins, awayWins, draws, totalHomeGoals, totalAwayGoals },
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     // ── Create Lobby ──

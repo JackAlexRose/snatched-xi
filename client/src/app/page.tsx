@@ -5,10 +5,11 @@ import { LobbyScreen } from "@/components/LobbyScreen";
 import { BlueprintScreen } from "@/components/BlueprintScreen";
 import { DraftScreen } from "@/components/DraftScreen";
 import { ResultScreen } from "@/components/ResultScreen";
+import { SimTestScreen } from "@/components/SimTestScreen";
 import { ServerMessage, FORMATIONS, FORMATION_SLOTS, DraftablePlayer } from "@/types";
 
 export default function Home() {
-  const [phase, setPhase] = useState<"lobby" | "blueprint" | "draft" | "result">("lobby");
+  const [phase, setPhase] = useState<"lobby" | "blueprint" | "draft" | "result" | "simTest">("lobby");
   const [lobbyId, setLobbyId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [yourFormation, setYourFormation] = useState<string | null>(null);
@@ -212,9 +213,10 @@ export default function Home() {
         {error && <span className="text-coral text-xs ml-2">{error}</span>}
       </header>
 
-      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} lobbyId={lobbyId} playerId={playerId || ""} />}
+      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} lobbyId={lobbyId} playerId={playerId || ""} />}
       {phase === "blueprint" && <BlueprintScreen onLock={(f: string) => sendMessage({ type: "submit_blueprint", formation: f })} />}
       {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} />}
+      {phase === "simTest" && <SimTestScreen onBack={() => setPhase("lobby")} />}
     </main>
   );
 }
