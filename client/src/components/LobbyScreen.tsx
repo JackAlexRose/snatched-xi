@@ -77,7 +77,7 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
             {/* Overview */}
             <div>
               <p>Snatched XI is a 1v1 competitive draft game using real Premier League squads from the last decade.</p>
-              <p className="text-slate-soft mt-1">You and an opponent draft 11 players round-by-round, then a server-side engine simulates the match live with play-by-play commentary.</p>
+              <p className="text-slate-soft mt-1">You and an opponent draft 11 players round-by-round, then a server-side engine simulates a best-of-3 season with live play-by-play commentary.</p>
             </div>
 
             {/* Phase 1 */}
@@ -107,13 +107,14 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="bg-navy text-white text-[0.55rem] font-bold w-4 h-4 rounded-full flex items-center justify-center shrink-0">3</span>
-                <span className="font-bold">The Match</span>
+                <span className="font-bold">The Season</span>
               </div>
-              <p className="text-slate-soft pl-6">The engine simulates a full 90-minute match using your drafted players&rsquo; attributes, formations, and real-time commentary.</p>
+              <p className="text-slate-soft pl-6">The engine simulates a best-of-3 mini-series using your drafted players&rsquo; attributes, formations, and real-time commentary.</p>
               <div className="pl-6 mt-1.5 space-y-1 text-slate-soft">
-                <p>&bull; <span className="text-navy font-bold">Live commentary</span> — passes, shots, saves, goals play out one by one</p>
-                <p>&bull; <span className="text-navy font-bold">Player ratings</span> — every player scored 3-10 based on performance</p>
-                <p>&bull; <span className="text-navy font-bold">Full stats</span> — possession, shots, goal events, top performers</p>
+                <p>&bull; <span className="text-navy font-bold">Live commentary</span> &mdash; passes, shots, saves, goals play out one by one across all 3 matches</p>
+                <p>&bull; <span className="text-navy font-bold">Running season score</span> &mdash; see the tally update between matches</p>
+                <p>&bull; <span className="text-navy font-bold">Player ratings</span> &mdash; every player scored 3-10 based on performance each match</p>
+                <p>&bull; <span className="text-navy font-bold">Season results</span> &mdash; final screen declares the winner with a full stats breakdown</p>
               </div>
             </div>
 
