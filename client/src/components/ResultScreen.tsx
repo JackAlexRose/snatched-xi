@@ -3,21 +3,47 @@
 import { PlayerRating } from "@/types";
 import { PlayerAvatar } from "./PlayerAvatar";
 
-export function ResultScreen({ result, playerId, myTeam }: { result: any; playerId: string; myTeam: any[] }) {
+export function ResultScreen({ result, playerId, myTeam }: { result: any; playerId: string | null; myTeam: any[] }) {
+  const isQuickSim = !playerId;
   const isHome = playerId === "p1";
-  const myScore = isHome ? result.score.home : result.score.away;
-  const oppScore = isHome ? result.score.away : result.score.home;
-  const myStats = isHome
+
+  // Determine which stats belong to which side
+  const showAsHome = isQuickSim ? true : isHome;
+  const myScore = showAsHome ? result.score.home : result.score.away;
+  const oppScore = showAsHome ? result.score.away : result.score.home;
+  const myStats = showAsHome
     ? { poss: result.stats.possession.home, sot: result.stats.shotsOnTarget.home, shots: result.stats.totalShots.home }
     : { poss: result.stats.possession.away, sot: result.stats.shotsOnTarget.away, shots: result.stats.totalShots.away };
-  const oppStats = isHome
+  const oppStats = showAsHome
     ? { poss: result.stats.possession.away, sot: result.stats.shotsOnTarget.away, shots: result.stats.totalShots.away }
     : { poss: result.stats.possession.home, sot: result.stats.shotsOnTarget.home, shots: result.stats.totalShots.home };
-  const myTeamRatings: PlayerRating[] = (isHome ? result.homeTeam : result.awayTeam).slice(0, 5);
-  const oppTeamRatings: PlayerRating[] = (isHome ? result.awayTeam : result.homeTeam).slice(0, 5);
+  const myTeamRatings: PlayerRating[] = (showAsHome ? result.homeTeam : result.awayTeam).slice(0, 5);
+  const oppTeamRatings: PlayerRating[] = (showAsHome ? result.awayTeam : result.homeTeam).slice(0, 5);
   
-  const myAvgOvr = isHome ? result.homeOvr : result.awayOvr;
-  const oppAvgOvr = isHome ? result.awayOvr : result.homeOvr;
+  const myAvgOvr = showAsHome ? result.homeOvr : result.awayOvr;
+  const oppAvgOvr = showAsHome ? result.awayOvr : result.homeOvr;
+
+  // Result labels
+  let resultColor: string;
+  let resultText: string;
+  if (isQuickSim) {
+    if (result.winner === "draw") { resultColor = "text-slate-soft"; resultText = "Draw"; }
+    else if (result.winner === "home") { resultColor = "text-coral"; resultText = "Home Wins"; }
+    else { resultColor = "text-mint"; resultText = "Away Wins"; }
+  } else {
+    if (result.winner === "draw") { resultColor = "text-slate-soft"; resultText = "It's a Draw"; }
+    else if (result.winner === playerId) { resultColor = "text-mint"; resultText = "You Win!"; }
+    else { resultColor = "text-coral"; resultText = "You Lose"; }
+  }
+
+  const myLabel = isQuickSim
+    ? `Home · ${myAvgOvr ?? "?"} OVR`
+    : "Your Team";
+  const oppLabel = isQuickSim
+    ? `Away · ${oppAvgOvr ?? "?"} OVR`
+    : "Opponent";
+  const myDot = isQuickSim ? "bg-coral" : "bg-mint";
+  const oppDot = isQuickSim ? "bg-mint" : "bg-coral";
 
   const PlayerRow = ({ p }: { p: PlayerRating }) => (
     <div className="flex justify-between items-center py-2.5 px-3 bg-white border border-[#E2E8F0] rounded-lg mb-1.5">
@@ -34,9 +60,6 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
     </div>
   );
 
-  const resultColor = result.winner === "draw" ? "text-slate-soft" : result.winner === playerId ? "text-mint" : "text-coral";
-  const resultText = result.winner === "draw" ? "It's a Draw" : result.winner === playerId ? "You Win!" : "You Lose";
-
   return (
     <div className="max-w-md mx-auto mt-8 px-6">
       <div className="text-center text-5xl font-display font-bold text-navy mb-1">
@@ -46,11 +69,11 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
         {resultText}
       </div>
 
-      {/* Your Team */}
+      {/* My Team / Home */}
       <h3 className="font-display font-bold text-navy text-sm mb-3 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-mint inline-block" />
-        Your Team
-        {myAvgOvr !== null && <span className="text-coral font-bold ml-1">{myAvgOvr} OVR</span>}
+        <span className={`w-2 h-2 rounded-full inline-block ${myDot}`} />
+        {myLabel}
+        {!isQuickSim && myAvgOvr != null && <span className="text-coral font-bold ml-1">{myAvgOvr} OVR</span>}
       </h3>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatBox value={`${myStats.poss}%`} label="Possession" />
@@ -59,10 +82,11 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
       </div>
       {myTeamRatings.map((p) => <PlayerRow key={p.playerId} p={p} />)}
 
-      {/* Opponent */}
+      {/* Opponent / Away */}
       <h3 className="font-display font-bold text-navy text-sm mt-8 mb-3 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-coral inline-block" />
-        Opponent{oppAvgOvr != null && <span className="text-coral ml-1">{oppAvgOvr} OVR</span>}
+        <span className={`w-2 h-2 rounded-full inline-block ${oppDot}`} />
+        {oppLabel}
+        {!isQuickSim && oppAvgOvr != null && <span className="text-coral ml-1">{oppAvgOvr} OVR</span>}
       </h3>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatBox value={`${oppStats.poss}%`} label="Possession" />

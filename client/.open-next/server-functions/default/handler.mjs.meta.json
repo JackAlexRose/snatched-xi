@@ -4553,7 +4553,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/chunks/ssr/src_app_page_tsx_1chiuah._.js": {
-      "bytes": 45905,
+      "bytes": 46142,
       "imports": [],
       "format": "cjs"
     },
@@ -7567,7 +7567,7 @@
           "bytesInOutput": 23456
         },
         ".open-next/server-functions/default/.next/server/chunks/ssr/src_app_page_tsx_1chiuah._.js": {
-          "bytesInOutput": 47124
+          "bytesInOutput": 47388
         },
         ".open-next/server-functions/default/.next/server/chunks/[turbopack]_runtime.js": {
           "bytesInOutput": 20090
@@ -7738,7 +7738,7 @@
           "bytesInOutput": 57736
         }
       },
-      "bytes": 2921441
+      "bytes": 2921705
     }
   }
 }
