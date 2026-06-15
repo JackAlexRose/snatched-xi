@@ -7,7 +7,8 @@ import { DraftScreen } from "@/components/DraftScreen";
 import { ResultScreen } from "@/components/ResultScreen";
 import { SimTestScreen } from "@/components/SimTestScreen";
 import { CommentaryFeed } from "@/components/CommentaryFeed";
-import { ServerMessage, FORMATIONS, FORMATION_SLOTS, DraftablePlayer } from "@/types";
+import { TournamentTable } from "@/components/TournamentTable";
+import { ServerMessage, FORMATIONS, FORMATION_SLOTS, DraftablePlayer, TournamentRow } from "@/types";
 
 export default function Home() {
   const [phase, setPhase] = useState<"lobby" | "blueprint" | "draft" | "commentary" | "result" | "simTest">("lobby");
@@ -16,7 +17,6 @@ export default function Home() {
   const [lobbyId, setLobbyId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [yourFormation, setYourFormation] = useState<string | null>(null);
-  const [opponentFormation, setOpponentFormation] = useState<string | null>(null);
   const [myTeam, setMyTeam] = useState<any[]>([]);
   const [currentRound, setCurrentRound] = useState(0);
   const [result, setResult] = useState<any>(null);
@@ -33,6 +33,9 @@ export default function Home() {
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
   const [commentaryEvents, setCommentaryEvents] = useState<any[]>([]);
   const [pendingResult, setPendingResult] = useState<any>(null);
+  const [lobbyPlayers, setLobbyPlayers] = useState<{ id: string; name: string; isBot: boolean }[]>([]);
+  const [tournamentTable, setTournamentTable] = useState<TournamentRow[]>([]);
+  const [tournamentMatch, setTournamentMatch] = useState<{ homeName: string; awayName: string; matchNumber: number; totalMatches: number } | null>(null);
   const commentaryRef = useRef(false);
   const pendingRef = useRef<any>(null);
   const quickSimRef = useRef(false);
@@ -61,7 +64,8 @@ export default function Home() {
     setLobbyId(lid);
     if (!isBot) setPlayerId(pid);
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//snatched-xi.jackalexanderrose.workers.dev/lobby/${lid}/ws?player=${pid}`);
+    const botParam = isBot ? "&bot=1" : "";
+    const ws = new WebSocket(`${proto}//snatched-xi.jackalexanderrose.workers.dev/lobby/${lid}/ws?player=${pid}${botParam}`);
     
     if (isBot) {
       botRef.current = ws;
@@ -83,6 +87,7 @@ export default function Home() {
       
       switch (msg.type) {
         case "lobby_state":
+          if (msg.players) setLobbyPlayers(msg.players);
           if (msg.phase === "BLUEPRINT") setPhase("blueprint");
           else if (msg.phase === "DRAFT") {
             setPhase("draft");
@@ -91,16 +96,11 @@ export default function Home() {
           }
           break;
         case "blueprint_reveal":
-          setYourFormation(msg.yourFormation);
-          setOpponentFormation(msg.opponentFormation);
-          setMyTeam((FORMATION_SLOTS[msg.yourFormation] || []).map((s: string) => ({ slot: s, player: null })));
+          // Find your own formation + team name
+          const you = msg.players.find(p => p.id === pid);
+          setYourFormation(you?.formation || msg.yourFormation);
+          setMyTeam((FORMATION_SLOTS[you?.formation || msg.yourFormation || FORMATIONS[0]] || []).map((s: string) => ({ slot: s, player: null })));
           setPhase("draft");
-          // Quick sim: auto-submit formation immediately
-          if (quickSimRef.current) {
-            setTimeout(() => {
-              ws.send(JSON.stringify({ type: "submit_blueprint", formation: FORMATIONS[Math.floor(Math.random() * FORMATIONS.length)] }));
-            }, 300);
-          }
           break;
         case "wheel_spin_start":
           clearTimers();
@@ -119,24 +119,12 @@ export default function Home() {
           clearTimers();
           setSquad(msg.players); setCurrentRound(msg.round);
           startCountdown(msg.timerSeconds, `Round ${msg.round} — ${msg.timerSeconds}s`);
-          // Quick sim: auto-pick a random eligible player
-          if (quickSimRef.current && msg.players.length > 0) {
-            const delay = 500 + Math.random() * 1500;
-            setTimeout(() => {
-              const available = msg.players.filter((p: DraftablePlayer) => !claimed.has(p.id));
-              if (available.length > 0) {
-                const pick = available[Math.floor(Math.random() * available.length)];
-                ws.send(JSON.stringify({ type: "draft_pick", playerId: pick.id }));
-              }
-            }, delay);
-          }
           break;
         case "player_claimed":
           setClaimed(prev => new Set(prev).add(msg.claimedPlayer.id));
           if (msg.playerId === pid) {
             setMyTeam((prev: any[]) => {
               const copy = [...prev];
-              // Use exact slot index from server, not findIndex (which picks first matching slot name)
               const idx = msg.slotIndex;
               if (idx >= 0 && idx < copy.length && !copy[idx].player) {
                 copy[idx] = { ...copy[idx], player: msg.claimedPlayer };
@@ -144,30 +132,43 @@ export default function Home() {
               return copy;
             });
           } else {
-            setOpponentMsg(`Opponent picked ${msg.claimedPlayer.name} (OVR ${msg.claimedPlayer.overall})`);
+            setOpponentMsg(`${msg.playerName} picked ${msg.claimedPlayer.name} (OVR ${msg.claimedPlayer.overall})`);
             setTimeout(() => setOpponentMsg(""), 3000);
           }
           break;
         case "draft_complete":
           setMyTeam(msg.yourTeam);
-          setTimer(0); setTimerLabel("Simulating match...");
+          setTimer(0); setTimerLabel("Tournament starting...");
+          break;
+        case "tournament_match":
+          setTournamentMatch({ homeName: msg.homeName, awayName: msg.awayName, matchNumber: msg.matchNumber, totalMatches: msg.totalMatches });
+          // Reset for next match
+          setCommentaryEvents([]);
+          setResult(null);
+          pendingRef.current = null;
+          commentaryRef.current = false;
+          setPhase("commentary");  // show the match banner while waiting for script
           break;
         case "match_script":
           setCommentaryEvents(msg.events);
           commentaryRef.current = true;
           setPhase("commentary");
-          // If result already came in (rare but possible), serve it after commentary
-          if (pendingRef.current) {
-            setPendingResult(pendingRef.current);
-          }
           break;
         case "match_result":
           if (commentaryRef.current) {
-            // Commentary is active — stash the result
             pendingRef.current = msg;
           } else {
-            setResult(msg); setPhase("result");
+            setResult(msg);
           }
+          break;
+        case "tournament_table":
+          setTournamentTable(msg.table);
+          // After each match result + table, server will send next tournament_match
+          break;
+        case "tournament_complete":
+          setTournamentTable(msg.table);
+          setResult((prev: any) => prev); // keep last match result
+          setPhase("result");
           break;
         case "error":
           setError(msg.message); break;
@@ -178,13 +179,12 @@ export default function Home() {
     ws.onerror = () => { if (!isBot) setError("Connection error"); };
   }, [startCountdown]);
 
-  // Bot auto-responds to game messages
   const handleBotMessage = (msg: ServerMessage, ws: WebSocket) => {
     switch (msg.type) {
       case "lobby_state":
         if (msg.phase === "BLUEPRINT") {
           const randFormation = FORMATIONS[Math.floor(Math.random() * FORMATIONS.length)];
-          setTimeout(() => ws.send(JSON.stringify({ type: "submit_blueprint", formation: randFormation })), 1000);
+          setTimeout(() => ws.send(JSON.stringify({ type: "submit_blueprint", formation: randFormation, teamName: "Bot" })), 1000);
         }
         break;
       case "squad_board":
@@ -204,48 +204,22 @@ export default function Home() {
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
-  const startDebugGame = useCallback(async () => {
-    setDebug(true);
-    const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/lobby/create", { method: "POST" });
-    const data = await res.json();
-    connect(data.lobbyId, "p1");
-    setTimeout(() => connect(data.lobbyId, "p2", true), 500);
-  }, [connect]);
-
   const startQuickSim = useCallback(async () => {
-    setDebug(true);
     try {
       const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/quick-sim", { method: "POST" });
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
-      
-      // Set teams for result display
       setMyTeam(data.homeTeam);
-      
-      // Build a match_result-compatible object for ResultScreen
       setResult({
-        type: "match_result",
-        score: data.result.score,
-        stats: {
-          possession: { home: data.result.possession, away: 100 - data.result.possession },
-          shotsOnTarget: data.result.shotsOnTarget,
-          totalShots: data.result.totalShots,
-        },
-        topPerformers: data.result.topPerformers,
-        homeTeam: data.result.homeTeam,
-        awayTeam: data.result.awayTeam,
-        winner: data.result.winner,
-        homeOvr: data.homeOvr,
-        awayOvr: data.awayOvr,
+        type: "match_result", score: data.result.score,
+        stats: { possession: { home: data.result.possession, away: 100 - data.result.possession }, shotsOnTarget: data.result.shotsOnTarget, totalShots: data.result.totalShots },
+        topPerformers: data.result.topPerformers, homeTeam: data.result.homeTeam, awayTeam: data.result.awayTeam,
+        winner: data.result.winner, homeOvr: data.homeOvr, awayOvr: data.awayOvr,
       });
-      
-      // Start commentary
       setCommentaryEvents(data.matchScript);
       commentaryRef.current = true;
       setPhase("commentary");
-    } catch (err: any) {
-      setError(err.message);
-    }
+    } catch (err: any) { setError(err.message); }
   }, []);
 
   const startSpinAnimation = () => {
@@ -259,37 +233,48 @@ export default function Home() {
     }, 80);
   };
 
-  // Commentary phase — full screen feed
+  const startEarly = () => {
+    wsRef.current?.send(JSON.stringify({ type: "start_early" }));
+  };
+
+  // Commentary phase
   if (phase === "commentary") {
     return (
       <main className="min-h-screen bg-cream text-navy">
         <header className="sticky top-0 z-20 bg-cream/95 backdrop-blur-sm border-b border-[#E2E8F0] px-4 py-3 max-w-[480px] mx-auto flex justify-between items-center">
           <h1 className="font-bold text-lg text-navy font-display tracking-tight">
-            Snatched XI{debug ? " [DEBUG]" : ""}
+            Snatched XI
           </h1>
           <span className="bg-navy text-white text-[0.65rem] font-bold font-display px-2 py-0.5 rounded-md">LIVE</span>
         </header>
+        {tournamentMatch && (
+          <div className="text-center mt-3 text-slate-soft text-xs font-display">
+            Match {tournamentMatch.matchNumber} of {tournamentMatch.totalMatches}
+          </div>
+        )}
         <CommentaryFeed
           events={commentaryEvents}
           homeLabel={
-            playerId
-              ? (playerId === "p1" ? `Your XI · ${result?.homeOvr ?? "?"} OVR (you)` : `Opponent · ${result?.homeOvr ?? "?"} OVR (them)`)
-              : `Home · ${result?.homeOvr ?? "?"} OVR`
+            result?.homeName || (
+              playerId
+                ? (playerId === "p1" ? `Your XI · ${result?.homeOvr ?? "?"} OVR (you)` : `Opponent · ${result?.homeOvr ?? "?"} OVR (them)`)
+                : `Home · ${result?.homeOvr ?? "?"} OVR`
+            )
           }
           awayLabel={
-            playerId
-              ? (playerId === "p2" ? `Your XI · ${result?.awayOvr ?? "?"} OVR (you)` : `Opponent · ${result?.awayOvr ?? "?"} OVR (them)`)
-              : `Away · ${result?.awayOvr ?? "?"} OVR`
+            result?.awayName || (
+              playerId
+                ? (playerId === "p2" ? `Your XI · ${result?.awayOvr ?? "?"} OVR (you)` : `Opponent · ${result?.awayOvr ?? "?"} OVR (them)`)
+                : `Away · ${result?.awayOvr ?? "?"} OVR`
+            )
           }
           onComplete={() => {
             commentaryRef.current = false;
-            // Quick Sim already has result set; lobby flow stashes it via refs
             if (!result && (pendingRef.current || pendingResult)) {
               const res = pendingRef.current || pendingResult;
-              if (res) {
-                setResult(res);
-              }
+              if (res) setResult(res);
             }
+            // For tournament: show result + table, wait for next match
             setPhase("result");
           }}
         />
@@ -297,7 +282,7 @@ export default function Home() {
     );
   }
 
-  // Draft phase uses its own internal header — other phases use a minimal shell
+  // Draft phase uses its own shell
   if (phase === "draft") {
     return (
       <DraftScreen
@@ -324,10 +309,7 @@ export default function Home() {
           onClick={() => {
             const next = devTaps + 1;
             setDevTaps(next);
-            if (next >= 5 && !devUnlocked) {
-              setDevUnlocked(true);
-              setDevTaps(0);
-            }
+            if (next >= 5 && !devUnlocked) { setDevUnlocked(true); setDevTaps(0); }
           }}
           className={`bg-navy text-white text-[0.65rem] font-bold font-display px-2 py-0.5 rounded-md select-none cursor-pointer transition-all ${
             devTaps >= 3 && !devUnlocked ? "ring-2 ring-coral/50 scale-105" : ""
@@ -339,9 +321,18 @@ export default function Home() {
         {error && <span className="text-coral text-xs ml-2">{error}</span>}
       </header>
 
-      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} onQuickSim={startQuickSim} lobbyId={lobbyId} playerId={playerId || ""} devUnlocked={devUnlocked} />}
-      {phase === "blueprint" && <BlueprintScreen onLock={(f: string) => sendMessage({ type: "submit_blueprint", formation: f })} />}
-      {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} />}
+      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={() => {}} onSimTest={() => setPhase("simTest")} onQuickSim={startQuickSim} onStartEarly={startEarly} lobbyId={lobbyId} playerId={playerId || ""} lobbyPlayers={lobbyPlayers} devUnlocked={devUnlocked} />}
+      {phase === "blueprint" && <BlueprintScreen onLock={(f, t) => sendMessage({ type: "submit_blueprint", formation: f, teamName: t })} />}
+      {phase === "result" && result && (
+        <>
+          <ResultScreen result={result} playerId={playerId} myTeam={myTeam} />
+          {tournamentTable.length > 0 && (
+            <div className="max-w-md mx-auto px-6 pb-8">
+              <TournamentTable table={tournamentTable} />
+            </div>
+          )}
+        </>
+      )}
       {phase === "simTest" && <SimTestScreen onBack={() => setPhase("lobby")} />}
     </main>
   );

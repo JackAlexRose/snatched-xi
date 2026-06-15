@@ -1,4 +1,4 @@
-// Snatched XI — Shared types (mirrors backend protocol.ts)
+// Snatched XI — Shared types (Tournament Edition)
 
 export const FORMATIONS = ['4-4-2', '4-3-3', '3-5-2', '4-2-3-1', '3-4-3', '5-3-2', '4-5-1'];
 
@@ -12,7 +12,6 @@ export const FORMATION_SLOTS: Record<string, string[]> = {
   '4-5-1':   ['GK', 'LB', 'CB', 'CB', 'RB', 'LM', 'CM', 'CM', 'CM', 'RM', 'ST'],
 };
 
-// Pitch slot positions (x%, y%)
 export const PITCH_SLOTS: Record<string, Record<string, { x: number; y: number }>> = {
   '4-4-2':   { GK:{x:50,y:88}, LB:{x:10,y:70}, CB:{x:35,y:70}, CB2:{x:65,y:70}, RB:{x:90,y:70}, LM:{x:10,y:43}, CM:{x:35,y:43}, CM2:{x:65,y:43}, RM:{x:90,y:43}, ST:{x:40,y:15}, ST2:{x:60,y:15} },
   '4-3-3':   { GK:{x:50,y:88}, LB:{x:10,y:70}, CB:{x:35,y:70}, CB2:{x:65,y:70}, RB:{x:90,y:70}, CM:{x:22,y:43}, CM2:{x:50,y:38}, CM3:{x:78,y:43}, LW:{x:15,y:15}, ST:{x:50,y:12}, RW:{x:85,y:15} },
@@ -53,23 +52,40 @@ export interface PlayerRating {
   assists?: number;
 }
 
+export interface TournamentRow {
+  playerId: string;
+  name: string;
+  teamName: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  points: number;
+}
+
 // ── Server → Client Messages ──
 
 export type ServerMessage =
-  | { type: "lobby_state"; phase: string; yourFormation?: string; opponentFormation?: string; currentRound?: number; yourTeam?: any[] }
-  | { type: "blueprint_reveal"; yourFormation: string; opponentFormation: string }
+  | { type: "lobby_state"; phase: string; players?: { id: string; name: string; isBot: boolean }[]; yourFormation?: string; currentRound?: number; yourTeam?: any[] }
+  | { type: "blueprint_reveal"; yourFormation: string; players: { id: string; name: string; formation: string; teamName: string }[] }
   | { type: "wheel_spin_start"; round: number }
   | { type: "wheel_spin_result"; club: string; season: string; round: number; thinkSeconds: number }
   | { type: "squad_board"; players: DraftablePlayer[]; round: number; timerSeconds: number }
   | { type: "player_claimed"; playerId: string; playerName: string; claimedPlayer: PlayerSummary; slotIndex: number; round: number }
-  | { type: "draft_complete"; yourTeam: PlayerSummary[]; opponentTeam: PlayerSummary[] }
-  | { type: "match_script"; events: { minute: number; type: string; player: string; team: string; detail?: string; assist?: string }[] }
-  | { type: "match_result"; score: { home: number; away: number }; stats: any; topPerformers: PlayerRating[]; homeTeam: PlayerRating[]; awayTeam: PlayerRating[]; winner: string; homeOvr?: number; awayOvr?: number }
+  | { type: "draft_complete"; yourTeam: PlayerSummary[]; players: { id: string; name: string; teamName: string; team: PlayerSummary[] }[] }
+  | { type: "match_script"; events: { minute: number; type: string; player: string; team: string; detail?: string; assist?: string }[]; homeName?: string; awayName?: string }
+  | { type: "match_result"; score: { home: number; away: number }; stats: any; topPerformers: PlayerRating[]; homeTeam: PlayerRating[]; awayTeam: PlayerRating[]; winner: string; homeOvr?: number; awayOvr?: number; homeName?: string; awayName?: string }
+  | { type: "tournament_match"; homeId: string; awayId: string; homeName: string; awayName: string; matchNumber: number; totalMatches: number }
+  | { type: "tournament_table"; table: TournamentRow[] }
+  | { type: "tournament_complete"; table: TournamentRow[] }
   | { type: "error"; message: string; code: string };
 
 // ── Client → Server Messages ──
 
 export type ClientMessage =
-  | { type: "join_lobby"; playerName: string }
-  | { type: "submit_blueprint"; formation: string }
-  | { type: "draft_pick"; playerId: string; slot?: string };
+  | { type: "join_lobby"; playerName: string; teamName?: string }
+  | { type: "submit_blueprint"; formation: string; teamName?: string }
+  | { type: "start_early" }
+  | { type: "draft_pick"; playerId: string; slot?: string; slotIndex?: number };
