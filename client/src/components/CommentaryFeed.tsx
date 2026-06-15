@@ -30,15 +30,15 @@ const EVENT_DELAYS: Record<string, number> = {
 function eventLabel(ev: CommentaryEvent): string {
   switch (ev.type) {
     case "kickoff": return "Kick-off! The match is underway.";
-    case "possession": return ev.detail || `${ev.player} builds possession`;
-    case "pass": return ev.detail || `${ev.player} passes`;
-    case "dribble": return ev.detail || `${ev.player} carries the ball forward`;
+    case "possession": return ev.detail ? `${ev.player} — ${ev.detail}` : `${ev.player} builds possession`;
+    case "pass": return ev.detail ? `${ev.player} ${ev.detail}` : `${ev.player} passes`;
+    case "dribble": return ev.detail ? `${ev.player} ${ev.detail}` : `${ev.player} carries forward`;
     case "shot": return `${ev.player} takes a shot!`;
     case "goal": return ev.detail || `GOAL! ${ev.player} scores!`;
     case "save": return ev.detail || `${ev.player} makes the save!`;
-    case "block": return ev.detail || `${ev.player} blocks the shot!`;
-    case "miss": return ev.detail || `${ev.player} misses the target`;
-    case "tackle": return ev.detail || `${ev.player} wins the ball`;
+    case "block": return ev.detail ? `${ev.player} ${ev.detail}` : `${ev.player} blocks the shot!`;
+    case "miss": return ev.detail ? `${ev.player} — ${ev.detail}` : `${ev.player} misses the target`;
+    case "tackle": return ev.detail ? `${ev.player} ${ev.detail}` : `${ev.player} wins the ball`;
     case "foul": return ev.detail || `${ev.player} commits a foul`;
     case "halftime": return "Half-time! The teams head to the dressing room.";
     case "fulltime": return "Full-time! The referee blows the whistle.";
@@ -63,9 +63,13 @@ function eventBg(ev: CommentaryEvent): string {
 
 export function CommentaryFeed({
   events,
+  homeLabel,
+  awayLabel,
   onComplete,
 }: {
   events: CommentaryEvent[];
+  homeLabel?: string;
+  awayLabel?: string;
   onComplete: () => void;
 }) {
   const [visible, setVisible] = useState<number>(0);
@@ -73,23 +77,19 @@ export function CommentaryFeed({
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Count goals as they appear
   const homeGoals = events.slice(0, visible).filter(e => e.type === "goal" && e.team === "home").length;
   const awayGoals = events.slice(0, visible).filter(e => e.type === "goal" && e.team === "away").length;
 
   useEffect(() => {
     if (visible >= events.length) {
-      // All events shown — brief pause then complete
       timerRef.current = setTimeout(() => {
         setShowScore(true);
-        // Another brief pause then transition to results
         setTimeout(onComplete, 2000);
       }, 1500);
       return;
     }
 
     const delay = EVENT_DELAYS[events[visible].type] || 1000;
-    // Speed up non-dramatic events after first 20
     const speedFactor = visible > 20 ? 0.7 : 1;
     
     timerRef.current = setTimeout(() => {
@@ -101,7 +101,6 @@ export function CommentaryFeed({
     };
   }, [visible, events, onComplete]);
 
-  // Auto-scroll
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -112,6 +111,23 @@ export function CommentaryFeed({
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
+      {/* Team headers */}
+      <div className="flex items-center justify-between mb-4 px-2">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-coral" />
+          <span className="font-display text-xs font-bold text-navy">
+            {homeLabel || "HOME"}
+          </span>
+        </div>
+        <span className="text-slate-soft text-xs font-display">vs</span>
+        <div className="flex items-center gap-2">
+          <span className="font-display text-xs font-bold text-navy">
+            {awayLabel || "AWAY"}
+          </span>
+          <span className="w-2.5 h-2.5 rounded-full bg-mint" />
+        </div>
+      </div>
+
       {/* Live scoreboard */}
       {showScore && (
         <div className="text-center mb-4 animate-fade-in">
@@ -127,7 +143,7 @@ export function CommentaryFeed({
       {/* Commentary feed */}
       <div
         ref={containerRef}
-        className="max-h-[55vh] overflow-y-auto space-y-1 rounded-xl bg-white/50 border border-[#E2E8F0] p-3"
+        className="max-h-[50vh] overflow-y-auto space-y-1 rounded-xl bg-white/50 border border-[#E2E8F0] p-3"
       >
         {displayedEvents.length === 0 && (
           <div className="text-center py-12 text-slate-soft font-display text-sm animate-pulse">
@@ -140,19 +156,16 @@ export function CommentaryFeed({
             key={i}
             className={`flex items-start gap-2 px-2 py-1.5 rounded-lg transition-all duration-300 animate-slide-up ${eventBg(ev)}`}
           >
-            {/* Minute */}
             <span className="text-slate-soft text-[0.6rem] font-display w-8 text-right shrink-0 pt-0.5">
               {ev.minute}&apos;
             </span>
 
-            {/* Home/away indicator */}
             <span className={`shrink-0 w-1.5 h-1.5 rounded-full mt-1.5 ${
               ev.type === "halftime" || ev.type === "fulltime" || ev.type === "kickoff"
                 ? "bg-navy/30"
                 : ev.team === "home" ? "bg-coral" : "bg-mint"
             }`} />
 
-            {/* Event text */}
             <span className={`font-display text-xs leading-snug ${eventColour(ev)}`}>
               {eventLabel(ev)}
               {ev.assist && ev.type === "goal" && (
@@ -162,7 +175,6 @@ export function CommentaryFeed({
           </div>
         ))}
 
-        {/* Typing indicator while events are still being played */}
         {visible < events.length && displayedEvents.length > 0 && (
           <div className="flex items-center gap-2 px-2 py-1.5">
             <span className="text-slate-soft text-[0.6rem] font-display w-8 text-right shrink-0" />
@@ -172,7 +184,7 @@ export function CommentaryFeed({
         )}
       </div>
 
-      {/* Live score ticker at bottom */}
+      {/* Live score ticker */}
       {visible > 0 && !showScore && (
         <div className="text-center mt-3 font-display text-xs text-slate-soft animate-fade-in">
           Live: <span className="text-coral font-bold">{homeGoals}</span> –{" "}

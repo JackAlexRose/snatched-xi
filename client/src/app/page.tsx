@@ -271,6 +271,16 @@ export default function Home() {
         </header>
         <CommentaryFeed
           events={commentaryEvents}
+          homeLabel={
+            playerId
+              ? (playerId === "p1" ? `Your XI · ${result?.homeOvr ?? "?"} OVR` : `Opponent · ${result?.homeOvr ?? "?"} OVR`)
+              : `Home · ${result?.homeOvr ?? "?"} OVR`
+          }
+          awayLabel={
+            playerId
+              ? (playerId === "p2" ? `Your XI · ${result?.awayOvr ?? "?"} OVR` : `Opponent · ${result?.awayOvr ?? "?"} OVR`)
+              : `Away · ${result?.awayOvr ?? "?"} OVR`
+          }
           onComplete={() => {
             commentaryRef.current = false;
             // Quick Sim already has result set; lobby flow stashes it via refs
