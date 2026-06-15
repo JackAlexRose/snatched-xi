@@ -70,6 +70,7 @@ export interface PlayerClaimedMessage {
   playerId: string;        // "p1" or "p2" — who made the claim
   playerName: string;      // Display name of the claiming player
   claimedPlayer: PlayerSummary;
+  slotIndex?: number;       // Exact array index for duplicate slots
   round: number;
 }
 
@@ -95,6 +96,8 @@ export interface MatchResultMessage {
   topPerformers: PlayerRating[];
   homeTeam: PlayerRating[];
   awayTeam: PlayerRating[];
+  homeOvr?: number;
+  awayOvr?: number;
   winner: string;  // playerId or 'draw'
 }
 

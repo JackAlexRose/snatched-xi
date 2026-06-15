@@ -152,7 +152,7 @@ export class LobbyDO extends DurableObject {
     return new Response('Snatched XI Lobby', { status: 200 });
   }
   
-  async webSocketMessage(ws: WebSocket, message: string): void {
+  async webSocketMessage(ws: WebSocket, message: string): Promise<void> {
     const tags = this.ctx.getTags(ws);
     const playerId = tags[0] as string;
     
@@ -179,7 +179,7 @@ export class LobbyDO extends DurableObject {
     }
   }
   
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): void {
+  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
     const tags = this.ctx.getTags(ws);
     const playerId = tags[0] as string;
     
@@ -197,7 +197,7 @@ export class LobbyDO extends DurableObject {
     }
   }
   
-  async webSocketError(ws: WebSocket, error: Error): void {
+  async webSocketError(ws: WebSocket, error: Error): Promise<void> {
     console.error(`WebSocket error: ${error.message}`);
   }
   
@@ -348,7 +348,7 @@ export class LobbyDO extends DurableObject {
     
     const result = await db.prepare(
       'SELECT id, club, season FROM club_seasons ORDER BY RANDOM() LIMIT 1'
-    ).first<{ id: string; club: string; season: string }>();
+    ).first() as { id: string; club: string; season: string } | null;
     
     if (!result) {
       this.broadcast({ type: 'error', message: 'No club-seasons available', code: 'NO_DATA' });
@@ -367,11 +367,19 @@ export class LobbyDO extends DurableObject {
     // Fetch squad for this club-season
     const squadResult = await db.prepare(
       'SELECT id, name, positions, overall, pace, shooting, passing, dribbling, defending, physicality FROM players WHERE club = ? AND season = ? ORDER BY overall DESC LIMIT 25'
-    ).bind(result.club, result.season).all<DraftablePlayer>();
-    
-    this.state.currentSquad = squadResult.results.map(p => ({
-      ...p,
-      positions: p.positions.split(',').map((s: string) => s.trim()),
+    ).bind(result.club, result.season).all() as { results: unknown[] };
+
+    this.state.currentSquad = (squadResult.results as unknown[]).map((p: any) => ({
+      id: p.id as string,
+      name: p.name as string,
+      positions: String(p.positions).split(',').map((s: string) => s.trim()),
+      overall: p.overall as number,
+      pace: p.pace as number | null,
+      shooting: p.shooting as number | null,
+      passing: p.passing as number | null,
+      dribbling: p.dribbling as number | null,
+      defending: p.defending as number | null,
+      physicality: p.physicality as number | null,
     }));
     
     await this.saveState();
@@ -593,7 +601,7 @@ export class LobbyDO extends DurableObject {
         
         const dbPlayer = await db.prepare(
           'SELECT * FROM players WHERE id = ?'
-        ).bind(sl.player.id).first<any>();
+        ).bind(sl.player.id).first() as Record<string, unknown> | null;
         
         slots.push({
           ...sl.player,

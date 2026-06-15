@@ -1,7 +1,7 @@
 // Snatched XI — Cloudflare Worker Entry Point
 // Routes: create lobby, join lobby, WebSocket upgrades, sim tester
+// Types (DurableObjectNamespace, D1Database) are globally available via @cloudflare/workers-types.
 
-import { DurableObjectNamespace, D1Database } from 'cloudflare:workers';
 import { simulateMatch } from './simulation';
 import { canPlayInSlot, FORMATION_SLOTS, DraftablePlayer, PlayerSummary } from './protocol';
 
@@ -242,9 +242,3 @@ export default {
   },
 };
 
-// ── Type declarations for non-TS imports ──
-
-declare module '*.html' {
-  const content: string;
-  export default content;
-}
