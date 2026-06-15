@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 
-export function LobbyScreen({ onConnect, onDebug, onSimTest, lobbyId, playerId, devUnlocked }: {
+export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId, playerId, devUnlocked }: {
   onConnect: (lid: string, pid: string) => void;
   onDebug: () => void;
   onSimTest: () => void;
+  onQuickSim: () => void;
   lobbyId: string | null;
   playerId: string;
   devUnlocked: boolean;
@@ -59,6 +60,9 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, lobbyId, playerId, 
             </button>
             <button onClick={onSimTest} className="bg-white text-navy border-2 border-dashed border-[#CBD5E1] rounded-xl px-6 py-3 font-display text-sm cursor-pointer hover:border-coral hover:text-coral transition-colors">
               Simulation Tester
+            </button>
+            <button onClick={onQuickSim} className="bg-white text-navy border-2 border-dashed border-[#CBD5E1] rounded-xl px-6 py-3 font-display text-sm cursor-pointer hover:border-amber-400 hover:text-amber-500 transition-colors">
+              Quick Sim
             </button>
           </div>
           <div className="text-slate-soft text-xs mt-2 font-display">Dev tools — test the engine</div>

@@ -35,6 +35,7 @@ export default function Home() {
   const [pendingResult, setPendingResult] = useState<any>(null);
   const commentaryRef = useRef(false);
   const pendingRef = useRef<any>(null);
+  const quickSimRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
   const botRef = useRef<WebSocket | null>(null);
   const spinRef = useRef<NodeJS.Timeout | null>(null);
@@ -94,6 +95,12 @@ export default function Home() {
           setOpponentFormation(msg.opponentFormation);
           setMyTeam((FORMATION_SLOTS[msg.yourFormation] || []).map((s: string) => ({ slot: s, player: null })));
           setPhase("draft");
+          // Quick sim: auto-submit formation immediately
+          if (quickSimRef.current) {
+            setTimeout(() => {
+              ws.send(JSON.stringify({ type: "submit_blueprint", formation: FORMATIONS[Math.floor(Math.random() * FORMATIONS.length)] }));
+            }, 300);
+          }
           break;
         case "wheel_spin_start":
           clearTimers();
@@ -112,6 +119,17 @@ export default function Home() {
           clearTimers();
           setSquad(msg.players); setCurrentRound(msg.round);
           startCountdown(msg.timerSeconds, `Round ${msg.round} — ${msg.timerSeconds}s`);
+          // Quick sim: auto-pick a random eligible player
+          if (quickSimRef.current && msg.players.length > 0) {
+            const delay = 500 + Math.random() * 1500;
+            setTimeout(() => {
+              const available = msg.players.filter((p: DraftablePlayer) => !claimed.has(p.id));
+              if (available.length > 0) {
+                const pick = available[Math.floor(Math.random() * available.length)];
+                ws.send(JSON.stringify({ type: "draft_pick", playerId: pick.id }));
+              }
+            }, delay);
+          }
           break;
         case "player_claimed":
           setClaimed(prev => new Set(prev).add(msg.claimedPlayer.id));
@@ -187,6 +205,15 @@ export default function Home() {
   }, []);
 
   const startDebugGame = useCallback(async () => {
+    setDebug(true);
+    const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/lobby/create", { method: "POST" });
+    const data = await res.json();
+    connect(data.lobbyId, "p1");
+    setTimeout(() => connect(data.lobbyId, "p2", true), 500);
+  }, [connect]);
+
+  const startQuickSim = useCallback(async () => {
+    quickSimRef.current = true;
     setDebug(true);
     const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/lobby/create", { method: "POST" });
     const data = await res.json();
@@ -272,7 +299,7 @@ export default function Home() {
         {error && <span className="text-coral text-xs ml-2">{error}</span>}
       </header>
 
-      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} lobbyId={lobbyId} playerId={playerId || ""} devUnlocked={devUnlocked} />}
+      {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} onQuickSim={startQuickSim} lobbyId={lobbyId} playerId={playerId || ""} devUnlocked={devUnlocked} />}
       {phase === "blueprint" && <BlueprintScreen onLock={(f: string) => sendMessage({ type: "submit_blueprint", formation: f })} />}
       {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} />}
       {phase === "simTest" && <SimTestScreen onBack={() => setPhase("lobby")} />}
