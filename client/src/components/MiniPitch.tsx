@@ -75,22 +75,8 @@ export function MiniPitch({
           const filled = item?.player;
           const slotName = item?.slot || key;
           const slotIndex = entry?.index ?? -1;
-
-          // Draft mode: is this slot a valid target for the selected player?
           const isValid = !filled && selectedPlayerId && selectedPositions.some(sp => canPlaySlot([sp], slotName));
-          // Is it the player's natural position? (no penalty)
-          const isNatural = !filled && selectedPlayerId && selectedPositions.some(sp =>
-            sp.toUpperCase() === slotName.toUpperCase()
-          );
-          // Playable but out of position — will incur 15% penalty
-          const isOffPosition = isValid && !isNatural;
-
           const isClickable = isValid || (!selectedPlayerId && !filled);
-
-          // After draft: check if filled player is out of position
-          const filledOffPosition = filled && item.player.positions && !isNaturalPosition(
-            item.player.positions, slotName
-          );
 
           return (
             <div
@@ -102,13 +88,9 @@ export function MiniPitch({
                 absolute w-11 h-11 rounded-full flex items-center justify-center
                 transition-all duration-200
                 ${filled
-                  ? filledOffPosition
-                    ? "bg-white border-2 border-amber-400 shadow-sm"
-                    : "bg-white border-2 border-mint shadow-sm"
+                  ? "bg-white border-2 border-mint shadow-sm"
                   : isValid
-                    ? isOffPosition
-                      ? "bg-white border-2 border-dashed border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.25)] animate-slot-bounce cursor-pointer"
-                      : "bg-white border-2 border-dashed border-mint shadow-[0_0_10px_rgba(16,185,129,0.25)] animate-slot-bounce cursor-pointer"
+                    ? "bg-white border-2 border-dashed border-mint shadow-[0_0_10px_rgba(16,185,129,0.25)] animate-slot-bounce cursor-pointer"
                     : isClickable
                       ? "bg-white/70 border border-[#DCFCE7] cursor-pointer hover:border-slate-soft"
                       : "bg-[#E2E8F0]/50 border border-[#CBD5E1] cursor-not-allowed"
@@ -121,27 +103,11 @@ export function MiniPitch({
               }}
             >
               {filled ? (
-                <>
-                  <PlayerAvatar name={item.player.name} size={36} />
-                  {filledOffPosition && (
-                    <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center shadow-sm"
-                      title={`Out of position: ${slotName} not in [${item.player.positions.join(", ")}]`}
-                    >
-                      <span className="text-white text-[0.45rem] font-bold leading-none">!</span>
-                    </div>
-                  )}
-                </>
+                <PlayerAvatar name={item.player.name} size={36} />
               ) : (
-                <div className="flex flex-col items-center">
-                  <span className={`font-display text-[0.55rem] font-bold ${
-                    isOffPosition ? "text-amber-500" : isValid ? "text-mint" : "text-slate-soft"
-                  }`}>
-                    {slotName}
-                  </span>
-                  {isOffPosition && (
-                    <span className="text-amber-400 text-[0.4rem] font-bold leading-none mt-0.5">-15%</span>
-                  )}
-                </div>
+                <span className={`font-display text-[0.55rem] font-bold ${isValid ? "text-mint" : "text-slate-soft"}`}>
+                  {slotName}
+                </span>
               )}
             </div>
           );
@@ -166,10 +132,4 @@ function canPlaySlot(playerPositions: string[], slot: string): boolean {
   if (["LW", "RW"].includes(sl)) return sp.some(p => ["LW", "RW", "LM", "RM", "ST", "CF"].includes(p));
   if (sl === "ST") return sp.some(p => ["ST", "CF", "LW", "RW"].includes(p));
   return sp.includes(sl);
-}
-
-// Strict check: is the slot literally in the player's positions list?
-// This matches the simulation engine's positionFitPenalty() logic.
-function isNaturalPosition(playerPositions: string[], slot: string): boolean {
-  return playerPositions.some(p => p.trim().toUpperCase() === slot.toUpperCase());
 }

@@ -73,7 +73,7 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
         </button>
 
         {showHow && (
-          <div className="mt-4 bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-5 text-xs font-display leading-relaxed text-navy shadow-sm">
+          <div className="mt-4 mb-8 bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-5 text-xs font-display leading-relaxed text-navy shadow-sm">
             {/* Overview */}
             <div>
               <p>Snatched XI is a 1v1 competitive draft game using real Premier League squads from the last decade.</p>
@@ -99,7 +99,6 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
               <div className="pl-6 mt-1.5 space-y-1 text-slate-soft">
                 <p>&bull; <span className="text-navy font-bold">First to claim wins</span> — if both want the same player, whoever clicks first gets them</p>
                 <p>&bull; <span className="text-navy font-bold">Positional locking</span> — a striker can&rsquo;t go in a CB slot. Valid slots pulse green during draft</p>
-                <p>&bull; <span className="text-amber-500 font-bold">Out-of-position penalty</span> — placing a CAM in CM costs you 15% on their attributes if CM isn&rsquo;t a listed position</p>
                 <p>&bull; <span className="text-navy font-bold">30-second timer</span> — don&rsquo;t miss your pick or you&rsquo;ll get a random player</p>
               </div>
             </div>
@@ -121,7 +120,7 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
             {/* Tips */}
             <div className="border-t border-[#E2E8F0] pt-4">
               <p className="font-bold mb-1">Tips</p>
-              <p className="text-slate-soft">Drafting elite defenders matters — they actively block shots in the engine. Stacking stars out of position costs you. Watch the out-of-position amber warnings on the pitch during draft.</p>
+              <p className="text-slate-soft">Drafting elite defenders matters — they actively block shots in the engine. Balance your squad across all positions for the best results.</p>
             </div>
           </div>
         )}

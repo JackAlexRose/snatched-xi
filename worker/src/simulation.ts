@@ -189,16 +189,6 @@ function getFormationMod(homeFormation: string, awayFormation: string): Formatio
 }
 
 // ═══════════════════════════════════════════
-// Out-of-position penalty
-// ═══════════════════════════════════════════
-
-function positionFitPenalty(player: FullPlayer): number {
-  const naturalPositions = player.positions.map(p => p.trim().toUpperCase());
-  if (naturalPositions.includes(player.slot.toUpperCase())) return 1.0;
-  return 0.85;
-}
-
-// ═══════════════════════════════════════════
 // Team strength
 // ═══════════════════════════════════════════
 
@@ -208,14 +198,13 @@ function weightedTeamStrength(players: FullPlayer[]): number {
   
   for (const p of players) {
     const weights = POSITION_WEIGHTS[p.slot] || { overall: 1.0 };
-    const posPenalty = positionFitPenalty(p);
     
     for (const [attr, weight] of Object.entries(weights)) {
       if (attr === 'overall') {
-        total += p.overall * weight * posPenalty;
+        total += p.overall * weight;
       } else {
         const val = getBaseAttribute(p, attr as any);
-        total += val * weight * posPenalty;
+        total += val * weight;
       }
       weightTotal += weight;
     }

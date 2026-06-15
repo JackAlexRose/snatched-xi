@@ -273,12 +273,12 @@ export default function Home() {
           events={commentaryEvents}
           homeLabel={
             playerId
-              ? (playerId === "p1" ? `Your XI · ${result?.homeOvr ?? "?"} OVR` : `Opponent · ${result?.homeOvr ?? "?"} OVR`)
+              ? (playerId === "p1" ? `Your XI · ${result?.homeOvr ?? "?"} OVR (you)` : `Opponent · ${result?.homeOvr ?? "?"} OVR (them)`)
               : `Home · ${result?.homeOvr ?? "?"} OVR`
           }
           awayLabel={
             playerId
-              ? (playerId === "p2" ? `Your XI · ${result?.awayOvr ?? "?"} OVR` : `Opponent · ${result?.awayOvr ?? "?"} OVR`)
+              ? (playerId === "p2" ? `Your XI · ${result?.awayOvr ?? "?"} OVR (you)` : `Opponent · ${result?.awayOvr ?? "?"} OVR (them)`)
               : `Away · ${result?.awayOvr ?? "?"} OVR`
           }
           onComplete={() => {
