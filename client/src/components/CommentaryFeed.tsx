@@ -77,6 +77,17 @@ export function CommentaryFeed({
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Reset when events change (new match)
+  const eventsRef = useRef(events);
+  useEffect(() => {
+    if (events !== eventsRef.current) {
+      eventsRef.current = events;
+      setVisible(0);
+      setShowScore(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    }
+  }, [events]);
+
   const homeGoals = events.slice(0, visible).filter(e => e.type === "goal" && e.team === "home").length;
   const awayGoals = events.slice(0, visible).filter(e => e.type === "goal" && e.team === "away").length;
 

@@ -38,10 +38,10 @@ export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumbe
 
   const myLabel = isQuickSim
     ? `Home · ${myAvgOvr ?? "?"} OVR`
-    : "Your Team";
+    : `Your Team (you)`;
   const oppLabel = isQuickSim
     ? `Away · ${oppAvgOvr ?? "?"} OVR`
-    : "Opponent";
+    : `Opponent (them)`;
   const myDot = isQuickSim ? "bg-coral" : "bg-mint";
   const oppDot = isQuickSim ? "bg-mint" : "bg-coral";
 

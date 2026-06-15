@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { LobbyScreen } from "@/components/LobbyScreen";
 import { BlueprintScreen } from "@/components/BlueprintScreen";
 import { DraftScreen } from "@/components/DraftScreen";
@@ -252,30 +252,40 @@ export default function Home() {
     } catch (err: any) { setError(err.message); }
   }, []);
 
-  const advanceQuickSimMatch = useCallback(() => {
-    if (quickSimMatches.length === 0) return;
-    const nextIdx = quickSimMatchIdx + 1;
-    if (nextIdx >= quickSimMatches.length) {
-      // Series complete
-      setPhase("result");
-      return;
-    }
-    
-    setQuickSimMatchIdx(nextIdx);
-    const m = quickSimMatches[nextIdx];
-    setMatchNumber(nextIdx + 1);
-    
+  const advanceQuickSimMatch = useCallback((fromIdx: number) => {
+    // Show the result for the match that just completed
+    const m = quickSimMatches[fromIdx];
     setResult({
       type: "match_result", score: m.result.score,
       stats: { possession: { home: m.result.possession, away: 100 - m.result.possession }, shotsOnTarget: m.result.shotsOnTarget, totalShots: m.result.totalShots },
       topPerformers: m.result.topPerformers, homeTeam: m.result.homeTeam, awayTeam: m.result.awayTeam,
-      winner: m.result.winner, matchNumber: nextIdx + 1, totalMatches: 3,
+      winner: m.result.winner, homeOvr: m.result.homeOvr, awayOvr: m.result.awayOvr,
+      matchNumber: fromIdx + 1, totalMatches: 3,
     });
-    
+    setPhase("result");
+  }, [quickSimMatches]);
+
+  // Start commentary for a specific match index
+  const startQuickSimCommentary = useCallback((idx: number) => {
+    const m = quickSimMatches[idx];
+    setMatchNumber(idx + 1);
     setCommentaryEvents(m.matchScript);
     commentaryRef.current = true;
     setPhase("commentary");
-  }, [quickSimMatches, quickSimMatchIdx]);
+  }, [quickSimMatches]);
+
+  // Auto-advance from result to next match after 5s
+  const resultTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (phase === "result" && quickSimMatches.length > 0 && quickSimMatchIdx < quickSimMatches.length - 1) {
+      const nextIdx = quickSimMatchIdx + 1;
+      resultTimerRef.current = setTimeout(() => {
+        setQuickSimMatchIdx(nextIdx);
+        startQuickSimCommentary(nextIdx);
+      }, 5000);
+    }
+    return () => { if (resultTimerRef.current) clearTimeout(resultTimerRef.current); };
+  }, [phase, quickSimMatches, quickSimMatchIdx, startQuickSimCommentary]);
 
   const startSpinAnimation = () => {
     const clubs = ["Man United","Liverpool","Chelsea","Arsenal","Man City","Tottenham","Leicester","Everton","West Ham","Newcastle"];
@@ -314,7 +324,7 @@ export default function Home() {
             commentaryRef.current = false;
             // Quick Sim: advance to next match in series
             if (quickSimMatches.length > 0) {
-              advanceQuickSimMatch();
+              advanceQuickSimMatch(quickSimMatchIdx);
               return;
             }
             // Lobby flow: stash result from refs
