@@ -63,7 +63,7 @@ export function CardCarousel({
 
   if (players.length === 0) {
     return (
-      <div className="flex items-center justify-center h-40 text-slate-soft text-sm font-display">
+      <div className="w-full flex items-center justify-center h-40 text-slate-soft text-sm font-display">
         Loading squad...
       </div>
     );
