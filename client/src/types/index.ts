@@ -63,7 +63,8 @@ export type ServerMessage =
   | { type: "squad_board"; players: DraftablePlayer[]; round: number; timerSeconds: number }
   | { type: "player_claimed"; playerId: string; playerName: string; claimedPlayer: PlayerSummary; slotIndex: number; round: number }
   | { type: "draft_complete"; yourTeam: PlayerSummary[]; opponentTeam: PlayerSummary[] }
-  | { type: "match_result"; score: { home: number; away: number }; stats: any; topPerformers: PlayerRating[]; homeTeam: PlayerRating[]; awayTeam: PlayerRating[]; winner: string }
+  | { type: "match_script"; events: { minute: number; type: string; player: string; team: string; detail?: string; assist?: string }[] }
+  | { type: "match_result"; score: { home: number; away: number }; stats: any; topPerformers: PlayerRating[]; homeTeam: PlayerRating[]; awayTeam: PlayerRating[]; winner: string; homeOvr?: number; awayOvr?: number }
   | { type: "error"; message: string; code: string };
 
 // ── Client → Server Messages ──

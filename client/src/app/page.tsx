@@ -6,10 +6,11 @@ import { BlueprintScreen } from "@/components/BlueprintScreen";
 import { DraftScreen } from "@/components/DraftScreen";
 import { ResultScreen } from "@/components/ResultScreen";
 import { SimTestScreen } from "@/components/SimTestScreen";
+import { CommentaryFeed } from "@/components/CommentaryFeed";
 import { ServerMessage, FORMATIONS, FORMATION_SLOTS, DraftablePlayer } from "@/types";
 
 export default function Home() {
-  const [phase, setPhase] = useState<"lobby" | "blueprint" | "draft" | "result" | "simTest">("lobby");
+  const [phase, setPhase] = useState<"lobby" | "blueprint" | "draft" | "commentary" | "result" | "simTest">("lobby");
   const [devTaps, setDevTaps] = useState(0);
   const [devUnlocked, setDevUnlocked] = useState(false);
   const [lobbyId, setLobbyId] = useState<string | null>(null);
@@ -30,6 +31,10 @@ export default function Home() {
   const [timerLabel, setTimerLabel] = useState("");
   const [opponentMsg, setOpponentMsg] = useState("");
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
+  const [commentaryEvents, setCommentaryEvents] = useState<any[]>([]);
+  const [pendingResult, setPendingResult] = useState<any>(null);
+  const commentaryRef = useRef(false);
+  const pendingRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const botRef = useRef<WebSocket | null>(null);
   const spinRef = useRef<NodeJS.Timeout | null>(null);
@@ -129,8 +134,22 @@ export default function Home() {
           setMyTeam(msg.yourTeam);
           setTimer(0); setTimerLabel("Simulating match...");
           break;
+        case "match_script":
+          setCommentaryEvents(msg.events);
+          commentaryRef.current = true;
+          setPhase("commentary");
+          // If result already came in (rare but possible), serve it after commentary
+          if (pendingRef.current) {
+            setPendingResult(pendingRef.current);
+          }
+          break;
         case "match_result":
-          setResult(msg); setPhase("result");
+          if (commentaryRef.current) {
+            // Commentary is active — stash the result
+            pendingRef.current = msg;
+          } else {
+            setResult(msg); setPhase("result");
+          }
           break;
         case "error":
           setError(msg.message); break;
@@ -185,6 +204,31 @@ export default function Home() {
       i++;
     }, 80);
   };
+
+  // Commentary phase — full screen feed
+  if (phase === "commentary") {
+    return (
+      <main className="min-h-screen bg-cream text-navy">
+        <header className="sticky top-0 z-20 bg-cream/95 backdrop-blur-sm border-b border-[#E2E8F0] px-4 py-3 max-w-[480px] mx-auto flex justify-between items-center">
+          <h1 className="font-bold text-lg text-navy font-display tracking-tight">
+            Snatched XI{debug ? " [DEBUG]" : ""}
+          </h1>
+          <span className="bg-navy text-white text-[0.65rem] font-bold font-display px-2 py-0.5 rounded-md">LIVE</span>
+        </header>
+        <CommentaryFeed
+          events={commentaryEvents}
+          onComplete={() => {
+            commentaryRef.current = false;
+            const res = pendingRef.current || pendingResult;
+            if (res) {
+              setResult(res);
+              setPhase("result");
+            }
+          }}
+        />
+      </main>
+    );
+  }
 
   // Draft phase uses its own internal header — other phases use a minimal shell
   if (phase === "draft") {

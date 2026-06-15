@@ -646,6 +646,12 @@ export class LobbyDO extends DurableObject {
     this.state.phase = 'OVER';
     await this.saveState();
     
+    // Broadcast play-by-play commentary first
+    this.broadcast({
+      type: 'match_script',
+      events: result.matchScript,
+    });
+    
     // Split player ratings into home/away teams
     const homeTeamRatings = result.topPerformers.filter(
       p => homeTeam.some(hp => hp.id === p.playerId)

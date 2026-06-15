@@ -167,6 +167,7 @@ export default {
           homeOvr,
           awayOvr,
           results,
+          matchScripts: results.map(r => r.matchScript),
           summary: { homeWins, awayWins, draws, totalHomeGoals, totalAwayGoals },
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

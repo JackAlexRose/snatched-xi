@@ -85,6 +85,20 @@ export interface DraftCompleteMessage {
   opponentTeam: PlayerSummary[];
 }
 
+export interface CommentaryEvent {
+  minute: number;
+  type: string;  // 'kickoff' | 'pass' | 'dribble' | 'shot' | 'goal' | 'save' | 'block' | 'miss' | 'tackle' | 'possession' | 'halftime' | 'fulltime'
+  player: string;
+  team: 'home' | 'away';
+  detail?: string;
+  assist?: string;
+}
+
+export interface MatchScriptMessage {
+  type: 'match_script';
+  events: CommentaryEvent[];
+}
+
 export interface MatchResultMessage {
   type: 'match_result';
   score: { home: number; away: number };
@@ -156,6 +170,7 @@ export type ServerMessage =
   | PlayerClaimedMessage
   | TimerTickMessage
   | DraftCompleteMessage
+  | MatchScriptMessage
   | MatchResultMessage
   | ErrorMessage;
 

@@ -67,3 +67,21 @@ body {
   animation: timer-elastic 2s ease-in-out infinite;
   transform-origin: center;
 }
+
+/* Commentary feed slide-up animation */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.35s ease-out forwards;
+}
+
+/* Commentary fade-in */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
