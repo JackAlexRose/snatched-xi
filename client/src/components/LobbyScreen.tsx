@@ -12,6 +12,7 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
   devUnlocked: boolean;
 }) {
   const [joinId, setJoinId] = useState("");
+  const [showHow, setShowHow] = useState(false);
 
   const createLobby = async () => {
     const res = await fetch("https://snatched-xi.jackalexanderrose.workers.dev/api/lobby/create", { method: "POST" });
@@ -27,7 +28,13 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
   const shareUrl = lobbyId ? `https://snatched-xi-client.jackalexanderrose.workers.dev/?lobby=${lobbyId}` : "";
 
   return (
-    <div className="max-w-md mx-auto mt-20 px-6 text-center">
+    <div className="max-w-md mx-auto mt-12 px-6 text-center">
+      {/* Title */}
+      <h1 className="font-display font-bold text-2xl text-navy mb-2">Snatched XI</h1>
+      <p className="font-display text-xs text-slate-soft mb-8">
+        1v1 football draft &amp; sim &mdash; pick a club&rsquo;s squad, draft your XI, let the engine decide
+      </p>
+
       <button onClick={createLobby} className="bg-navy text-white px-8 py-3 text-base rounded-xl font-display font-bold cursor-pointer hover:bg-navy/90 transition-colors mb-8">
         Create Lobby
       </button>
@@ -51,6 +58,74 @@ export function LobbyScreen({ onConnect, onDebug, onSimTest, onQuickSim, lobbyId
           </div>
         </div>
       )}
+
+      {/* How to Play */}
+      <div className="text-left border-t border-[#E2E8F0] pt-6 mt-6">
+        <button
+          onClick={() => setShowHow(!showHow)}
+          className="w-full flex items-center justify-between font-display text-sm font-bold text-navy cursor-pointer hover:text-navy/70 transition-colors"
+        >
+          How to Play
+          <svg width="12" height="12" viewBox="0 0 12 12"
+            className={`transition-transform duration-200 ${showHow ? "rotate-180" : ""}`}>
+            <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        {showHow && (
+          <div className="mt-4 bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-5 text-xs font-display leading-relaxed text-navy shadow-sm">
+            {/* Overview */}
+            <div>
+              <p>Snatched XI is a 1v1 competitive draft game using real Premier League squads from the last decade.</p>
+              <p className="text-slate-soft mt-1">You and an opponent draft 11 players round-by-round, then a server-side engine simulates the match live with play-by-play commentary.</p>
+            </div>
+
+            {/* Phase 1 */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="bg-navy text-white text-[0.55rem] font-bold w-4 h-4 rounded-full flex items-center justify-center shrink-0">1</span>
+                <span className="font-bold">Blueprint</span>
+              </div>
+              <p className="text-slate-soft pl-6">Both players secretly lock in a <span className="text-navy font-bold">formation</span> (4-3-3, 4-4-2, 3-5-2, etc.). Choices are hidden until both have submitted.</p>
+            </div>
+
+            {/* Phase 2 */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="bg-navy text-white text-[0.55rem] font-bold w-4 h-4 rounded-full flex items-center justify-center shrink-0">2</span>
+                <span className="font-bold">The Draft · 11 Rounds</span>
+              </div>
+              <p className="text-slate-soft pl-6">Each round the wheel selects a random <span className="text-navy font-bold">club &amp; season</span> — you both see the same squad. Pick one player and slot them into your formation.</p>
+              <div className="pl-6 mt-1.5 space-y-1 text-slate-soft">
+                <p>&bull; <span className="text-navy font-bold">First to claim wins</span> — if both want the same player, whoever clicks first gets them</p>
+                <p>&bull; <span className="text-navy font-bold">Positional locking</span> — a striker can&rsquo;t go in a CB slot. Valid slots pulse green during draft</p>
+                <p>&bull; <span className="text-amber-500 font-bold">Out-of-position penalty</span> — placing a CAM in CM costs you 15% on their attributes if CM isn&rsquo;t a listed position</p>
+                <p>&bull; <span className="text-navy font-bold">30-second timer</span> — don&rsquo;t miss your pick or you&rsquo;ll get a random player</p>
+              </div>
+            </div>
+
+            {/* Phase 3 */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="bg-navy text-white text-[0.55rem] font-bold w-4 h-4 rounded-full flex items-center justify-center shrink-0">3</span>
+                <span className="font-bold">The Match</span>
+              </div>
+              <p className="text-slate-soft pl-6">The engine simulates a full 90-minute match using your drafted players&rsquo; attributes, formations, and real-time commentary.</p>
+              <div className="pl-6 mt-1.5 space-y-1 text-slate-soft">
+                <p>&bull; <span className="text-navy font-bold">Live commentary</span> — passes, shots, saves, goals play out one by one</p>
+                <p>&bull; <span className="text-navy font-bold">Player ratings</span> — every player scored 3-10 based on performance</p>
+                <p>&bull; <span className="text-navy font-bold">Full stats</span> — possession, shots, goal events, top performers</p>
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="border-t border-[#E2E8F0] pt-4">
+              <p className="font-bold mb-1">Tips</p>
+              <p className="text-slate-soft">Drafting elite defenders matters — they actively block shots in the engine. Stacking stars out of position costs you. Watch the out-of-position amber warnings on the pitch during draft.</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {devUnlocked && (
         <div className="border-t border-[#E2E8F0] pt-8 mt-8">
