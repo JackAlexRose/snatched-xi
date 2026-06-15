@@ -58,6 +58,10 @@ interface LobbyState {
   
   // Simulation
   matchResult: SimulationResult | null;
+  
+  // Series (best-of-3)
+  seriesResults: SimulationResult[];
+  seriesCurrentMatch: number;
 }
 
 // ── Durable Object ──
@@ -82,6 +86,8 @@ export class LobbyDO extends DurableObject {
       claimedPlayers: new Map(),
       roundComplete: new Set(),
       matchResult: null,
+      seriesResults: [],
+      seriesCurrentMatch: 0,
     };
     
     // Restore from storage if available
@@ -246,6 +252,10 @@ export class LobbyDO extends DurableObject {
         await this.resolveExpiredTimer();
       }
     }
+    
+    if (this.alarmPhase === 'series_next') {
+      await this.runSeriesMatch(this.state.seriesCurrentMatch);
+    }
   }
   
   // ── Game Logic ──
@@ -396,7 +406,7 @@ export class LobbyDO extends DurableObject {
   }
   
   // Track what the alarm is for (since DO alarms can only have one pending)
-  private alarmPhase: 'spin_reveal' | 'show_squad' | 'draft_timer' | 'disconnect' = 'draft_timer';
+  private alarmPhase: 'spin_reveal' | 'show_squad' | 'draft_timer' | 'disconnect' | 'series_next' = 'draft_timer';
 
   private async handleDraftPick(ws: WebSocket, playerId: string, pickedPlayerId: string, clientSlot?: string, clientSlotIndex?: number): Promise<void> {
     if (this.state.phase !== 'DRAFT') {
@@ -585,20 +595,19 @@ export class LobbyDO extends DurableObject {
   
   private async startSimulation(): Promise<void> {
     this.state.phase = 'SIMULATE';
+    this.state.seriesResults = [];
+    this.state.seriesCurrentMatch = 0;
     await this.saveState();
     
     const p1 = this.state.players.get('p1')!;
     const p2 = this.state.players.get('p2')!;
     
-    // Build full player objects (with attributes) for simulation
-    // We need to fetch attributes from D1 for each drafted player
     const db = (this.env as any).DB;
     
     const buildFullTeam = async (player: PlayerState) => {
       const slots: any[] = [];
       for (const sl of player.team) {
         if (!sl.player) continue;
-        
         const dbPlayer = await db.prepare(
           'SELECT * FROM players WHERE id = ?'
         ).bind(sl.player.id).first() as Record<string, unknown> | null;
@@ -621,6 +630,12 @@ export class LobbyDO extends DurableObject {
     const homeTeam = await buildFullTeam(p1);
     const awayTeam = await buildFullTeam(p2);
     
+    // Cache teams for subsequent matches
+    (this.state as any)._homeTeam = homeTeam;
+    (this.state as any)._awayTeam = awayTeam;
+    (this.state as any)._homeFormation = p1.formation || '4-4-2';
+    (this.state as any)._awayFormation = p2.formation || '4-4-2';
+    
     // Broadcast draft complete
     this.broadcastToPlayer('p1', {
       type: 'draft_complete',
@@ -634,35 +649,43 @@ export class LobbyDO extends DurableObject {
       opponentTeam: p1.team.filter(s => s.player).map(s => s.player!),
     });
     
-    // Run simulation
-    const result = simulateMatch(
-      homeTeam,
-      awayTeam,
-      p1.formation || '4-4-2',
-      p2.formation || '4-4-2'
-    );
+    // Run first match immediately
+    await this.runSeriesMatch(0);
+  }
+  
+  private async runSeriesMatch(matchNum: number): Promise<void> {
+    const homeTeam = (this.state as any)._homeTeam;
+    const awayTeam = (this.state as any)._awayTeam;
+    const homeFormation = (this.state as any)._homeFormation;
+    const awayFormation = (this.state as any)._awayFormation;
     
-    this.state.matchResult = result;
-    this.state.phase = 'OVER';
+    const result = simulateMatch(homeTeam, awayTeam, homeFormation, awayFormation);
+    this.state.seriesResults.push(result);
+    this.state.seriesCurrentMatch = matchNum + 1;
     await this.saveState();
     
-    // Broadcast play-by-play commentary first
+    // Broadcast commentary with match number
     this.broadcast({
       type: 'match_script',
       events: result.matchScript,
+      matchNumber: matchNum + 1,
+      totalMatches: 3,
     });
     
-    // Split player ratings into home/away teams
+    // Split ratings
     const homeTeamRatings = result.topPerformers.filter(
-      p => homeTeam.some(hp => hp.id === p.playerId)
+      p => homeTeam.some((hp: any) => hp.id === p.playerId)
     );
     const awayTeamRatings = result.topPerformers.filter(
-      p => awayTeam.some(ap => ap.id === p.playerId)
+      p => awayTeam.some((ap: any) => ap.id === p.playerId)
     );
     
-    // Compute average team OVRs
-    const homeOvr = Math.round(homeTeam.reduce((s, p) => s + p.overall, 0) / homeTeam.length);
-    const awayOvr = Math.round(awayTeam.reduce((s, p) => s + p.overall, 0) / awayTeam.length);
+    const homeOvr = Math.round(homeTeam.reduce((s: number, p: any) => s + p.overall, 0) / homeTeam.length);
+    const awayOvr = Math.round(awayTeam.reduce((s: number, p: any) => s + p.overall, 0) / awayTeam.length);
+    
+    // Determine winner
+    const winner = result.score.home > result.score.away ? 'p1' 
+      : result.score.away > result.score.home ? 'p2' : 'draw';
     
     // Broadcast result
     this.broadcast({
@@ -678,9 +701,35 @@ export class LobbyDO extends DurableObject {
       awayTeam: awayTeamRatings,
       homeOvr,
       awayOvr,
-      winner: result.score.home > result.score.away ? 'p1' 
-        : result.score.away > result.score.home ? 'p2' : 'draw',
+      winner,
+      matchNumber: matchNum + 1,
+      totalMatches: 3,
     });
+    
+    // Compute series score
+    let p1Wins = 0, p2Wins = 0;
+    for (const r of this.state.seriesResults) {
+      if (r.score.home > r.score.away) p1Wins++;
+      else if (r.score.away > r.score.home) p2Wins++;
+    }
+    
+    if (matchNum < 2) {
+      // Schedule next match via alarm (3s pause)
+      this.alarmPhase = 'series_next';
+      await this.ctx.storage.setAlarm(Date.now() + 3000);
+    } else {
+      // Series complete
+      this.state.phase = 'OVER';
+      await this.saveState();
+      
+      // Broadcast series result
+      const seriesWinner = p1Wins > p2Wins ? 'p1' : p2Wins > p1Wins ? 'p2' : 'draw';
+      this.broadcast({
+        type: 'series_result',
+        seriesScore: { p1: p1Wins, p2: p2Wins },
+        winner: seriesWinner,
+      });
+    }
   }
   
   // ── Cleanup ──

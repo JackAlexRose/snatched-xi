@@ -97,6 +97,8 @@ export interface CommentaryEvent {
 export interface MatchScriptMessage {
   type: 'match_script';
   events: CommentaryEvent[];
+  matchNumber?: number;
+  totalMatches?: number;
 }
 
 export interface MatchResultMessage {
@@ -112,7 +114,15 @@ export interface MatchResultMessage {
   awayTeam: PlayerRating[];
   homeOvr?: number;
   awayOvr?: number;
-  winner: string;  // playerId or 'draw'
+  winner: string;
+  matchNumber?: number;
+  totalMatches?: number;
+}
+
+export interface SeriesResultMessage {
+  type: 'series_result';
+  seriesScore: { p1: number; p2: number };
+  winner: string;
 }
 
 export interface ErrorMessage {
@@ -172,6 +182,7 @@ export type ServerMessage =
   | DraftCompleteMessage
   | MatchScriptMessage
   | MatchResultMessage
+  | SeriesResultMessage
   | ErrorMessage;
 
 // ── Formation Slot Definitions ──

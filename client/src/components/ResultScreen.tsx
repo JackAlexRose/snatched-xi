@@ -3,7 +3,7 @@
 import { PlayerRating } from "@/types";
 import { PlayerAvatar } from "./PlayerAvatar";
 
-export function ResultScreen({ result, playerId, myTeam }: { result: any; playerId: string | null; myTeam: any[] }) {
+export function ResultScreen({ result, playerId, myTeam, seriesScore, matchNumber, totalMatches }: { result: any; playerId: string | null; myTeam: any[]; seriesScore?: { p1: number; p2: number } | null; matchNumber?: number; totalMatches?: number }) {
   const isQuickSim = !playerId;
   const isHome = playerId === "p1";
 
@@ -67,7 +67,35 @@ export function ResultScreen({ result, playerId, myTeam }: { result: any; player
       </div>
       <div className={`text-center text-xl font-display font-bold mb-8 ${resultColor}`}>
         {resultText}
+        {matchNumber && totalMatches && (
+          <span className="text-slate-soft text-xs font-normal ml-2">(Match {matchNumber} of {totalMatches})</span>
+        )}
       </div>
+
+      {/* Series score */}
+      {seriesScore && (
+        <div className="text-center mb-6 pb-4 border-b border-[#E2E8F0]">
+          <div className="text-slate-soft text-xs font-display mb-1">Series</div>
+          <div className="inline-flex items-center gap-3 font-display font-bold text-lg text-navy">
+            <span className={seriesScore.p1 > seriesScore.p2 ? "text-mint" : seriesScore.p1 === seriesScore.p2 ? "text-slate-soft" : "text-coral"}>
+              {seriesScore.p1}
+            </span>
+            <span className="text-slate-soft text-sm">–</span>
+            <span className={seriesScore.p2 > seriesScore.p1 ? "text-mint" : seriesScore.p2 === seriesScore.p1 ? "text-slate-soft" : "text-coral"}>
+              {seriesScore.p2}
+            </span>
+          </div>
+          {playerId && (
+            <div className="text-xs font-display mt-1 font-bold text-navy">
+              {seriesScore.p1 > seriesScore.p2
+                ? (playerId === "p1" ? "You win the series!" : "You lose the series")
+                : seriesScore.p2 > seriesScore.p1
+                  ? (playerId === "p2" ? "You win the series!" : "You lose the series")
+                  : "Series drawn"}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* My Team / Home */}
       <h3 className="font-display font-bold text-navy text-sm mb-3 flex items-center gap-2">

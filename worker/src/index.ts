@@ -110,9 +110,8 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // ── Quick Sim ──
-    // Auto-drafts two random teams, runs 1 simulation, returns match script + result.
-    // Used by the Quick Sim dev mode — skips the draft UI entirely.
+    // ── Quick Sim (Best of 3) ──
+    // Auto-drafts two random teams, runs 3 simulations (best-of-3 series).
     if (path === '/api/quick-sim' && request.method === 'POST') {
       try {
         const formations = Object.keys(FORMATION_SLOTS);
@@ -128,8 +127,6 @@ export default {
         const homeOvr = Math.round(homeTeam.reduce((s: number, p: any) => s + p.overall, 0) / homeTeam.length);
         const awayOvr = Math.round(awayTeam.reduce((s: number, p: any) => s + p.overall, 0) / awayTeam.length);
 
-        const sim = simulateMatch(homeTeam, awayTeam, homeFormation, awayFormation);
-
         const homeSummary = homeTeam.map((p: any) => ({
           id: p.id, name: p.name, positions: p.positions, overall: p.overall, slot: p.slot,
         }));
@@ -137,8 +134,30 @@ export default {
           id: p.id, name: p.name, positions: p.positions, overall: p.overall, slot: p.slot,
         }));
 
-        const homeTeamRatings = sim.topPerformers.filter(p => homeTeam.some(hp => hp.id === p.playerId));
-        const awayTeamRatings = sim.topPerformers.filter(p => awayTeam.some(ap => ap.id === p.playerId));
+        // Run 3 matches
+        const matches: any[] = [];
+        let p1Wins = 0, p2Wins = 0;
+        
+        for (let i = 0; i < 3; i++) {
+          const sim = simulateMatch(homeTeam, awayTeam, homeFormation, awayFormation);
+          const homeRatings = sim.topPerformers.filter((p: any) => homeTeam.some((hp: any) => hp.id === p.playerId));
+          const awayRatings = sim.topPerformers.filter((p: any) => awayTeam.some((ap: any) => ap.id === p.playerId));
+          
+          if (sim.score.home > sim.score.away) p1Wins++;
+          else if (sim.score.away > sim.score.home) p2Wins++;
+          
+          matches.push({
+            matchScript: sim.matchScript,
+            result: {
+              score: sim.score, possession: sim.possession,
+              shotsOnTarget: sim.shotsOnTarget, totalShots: sim.totalShots,
+              topPerformers: sim.topPerformers,
+              homeTeam: homeRatings, awayTeam: awayRatings,
+              homeOvr, awayOvr,
+              winner: sim.score.home > sim.score.away ? 'home' : sim.score.away > sim.score.home ? 'away' : 'draw',
+            },
+          });
+        }
 
         return new Response(JSON.stringify({
           homeFormation,
@@ -147,17 +166,8 @@ export default {
           awayTeam: awaySummary,
           homeOvr,
           awayOvr,
-          matchScript: sim.matchScript,
-          result: {
-            score: sim.score,
-            possession: sim.possession,
-            shotsOnTarget: sim.shotsOnTarget,
-            totalShots: sim.totalShots,
-            topPerformers: sim.topPerformers,
-            homeTeam: homeTeamRatings,
-            awayTeam: awayTeamRatings,
-            winner: sim.score.home > sim.score.away ? 'home' : sim.score.away > sim.score.home ? 'away' : 'draw',
-          },
+          matches,
+          seriesScore: { p1: p1Wins, p2: p2Wins },
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

@@ -33,6 +33,11 @@ export default function Home() {
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
   const [commentaryEvents, setCommentaryEvents] = useState<any[]>([]);
   const [pendingResult, setPendingResult] = useState<any>(null);
+  const [matchNumber, setMatchNumber] = useState(0);
+  const [totalMatches, setTotalMatches] = useState(3);
+  const [seriesScore, setSeriesScore] = useState<{ p1: number; p2: number } | null>(null);
+  const [quickSimMatches, setQuickSimMatches] = useState<any[]>([]);
+  const [quickSimMatchIdx, setQuickSimMatchIdx] = useState(0);
   const commentaryRef = useRef(false);
   const pendingRef = useRef<any>(null);
   const quickSimRef = useRef(false);
@@ -151,23 +156,28 @@ export default function Home() {
         case "draft_complete":
           setMyTeam(msg.yourTeam);
           setTimer(0); setTimerLabel("Simulating match...");
+          setSeriesScore(null);
           break;
         case "match_script":
           setCommentaryEvents(msg.events);
+          if (msg.matchNumber) setMatchNumber(msg.matchNumber);
+          if (msg.totalMatches) setTotalMatches(msg.totalMatches);
           commentaryRef.current = true;
           setPhase("commentary");
-          // If result already came in (rare but possible), serve it after commentary
           if (pendingRef.current) {
             setPendingResult(pendingRef.current);
           }
           break;
         case "match_result":
           if (commentaryRef.current) {
-            // Commentary is active — stash the result
             pendingRef.current = msg;
           } else {
-            setResult(msg); setPhase("result");
+            setResult(msg);
           }
+          break;
+        case "series_result":
+          setSeriesScore(msg.seriesScore);
+          setPhase("result");
           break;
         case "error":
           setError(msg.message); break;
@@ -219,34 +229,53 @@ export default function Home() {
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
       
-      // Set teams for result display
       setMyTeam(data.homeTeam);
+      setQuickSimMatches(data.matches);
+      setQuickSimMatchIdx(0);
+      setSeriesScore(data.seriesScore);
+      setTotalMatches(3);
       
-      // Build a match_result-compatible object for ResultScreen
+      // Start first match
+      const m = data.matches[0];
+      setMatchNumber(1);
       setResult({
-        type: "match_result",
-        score: data.result.score,
-        stats: {
-          possession: { home: data.result.possession, away: 100 - data.result.possession },
-          shotsOnTarget: data.result.shotsOnTarget,
-          totalShots: data.result.totalShots,
-        },
-        topPerformers: data.result.topPerformers,
-        homeTeam: data.result.homeTeam,
-        awayTeam: data.result.awayTeam,
-        winner: data.result.winner,
-        homeOvr: data.homeOvr,
-        awayOvr: data.awayOvr,
+        type: "match_result", score: m.result.score,
+        stats: { possession: { home: m.result.possession, away: 100 - m.result.possession }, shotsOnTarget: m.result.shotsOnTarget, totalShots: m.result.totalShots },
+        topPerformers: m.result.topPerformers, homeTeam: m.result.homeTeam, awayTeam: m.result.awayTeam,
+        winner: m.result.winner, homeOvr: data.homeOvr, awayOvr: data.awayOvr,
+        matchNumber: 1, totalMatches: 3,
       });
       
-      // Start commentary
-      setCommentaryEvents(data.matchScript);
+      setCommentaryEvents(m.matchScript);
       commentaryRef.current = true;
       setPhase("commentary");
-    } catch (err: any) {
-      setError(err.message);
-    }
+    } catch (err: any) { setError(err.message); }
   }, []);
+
+  const advanceQuickSimMatch = useCallback(() => {
+    if (quickSimMatches.length === 0) return;
+    const nextIdx = quickSimMatchIdx + 1;
+    if (nextIdx >= quickSimMatches.length) {
+      // Series complete
+      setPhase("result");
+      return;
+    }
+    
+    setQuickSimMatchIdx(nextIdx);
+    const m = quickSimMatches[nextIdx];
+    setMatchNumber(nextIdx + 1);
+    
+    setResult({
+      type: "match_result", score: m.result.score,
+      stats: { possession: { home: m.result.possession, away: 100 - m.result.possession }, shotsOnTarget: m.result.shotsOnTarget, totalShots: m.result.totalShots },
+      topPerformers: m.result.topPerformers, homeTeam: m.result.homeTeam, awayTeam: m.result.awayTeam,
+      winner: m.result.winner, matchNumber: nextIdx + 1, totalMatches: 3,
+    });
+    
+    setCommentaryEvents(m.matchScript);
+    commentaryRef.current = true;
+    setPhase("commentary");
+  }, [quickSimMatches, quickSimMatchIdx]);
 
   const startSpinAnimation = () => {
     const clubs = ["Man United","Liverpool","Chelsea","Arsenal","Man City","Tottenham","Leicester","Everton","West Ham","Newcastle"];
@@ -341,7 +370,7 @@ export default function Home() {
 
       {phase === "lobby" && <LobbyScreen onConnect={(lid, pid) => connect(lid, pid)} onDebug={startDebugGame} onSimTest={() => setPhase("simTest")} onQuickSim={startQuickSim} lobbyId={lobbyId} playerId={playerId || ""} devUnlocked={devUnlocked} />}
       {phase === "blueprint" && <BlueprintScreen onLock={(f: string) => sendMessage({ type: "submit_blueprint", formation: f })} />}
-      {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} />}
+      {phase === "result" && result && <ResultScreen result={result} playerId={playerId!} myTeam={myTeam} seriesScore={seriesScore} matchNumber={matchNumber} totalMatches={totalMatches} />}
       {phase === "simTest" && <SimTestScreen onBack={() => setPhase("lobby")} />}
     </main>
   );
