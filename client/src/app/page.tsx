@@ -312,7 +312,12 @@ export default function Home() {
           }
           onComplete={() => {
             commentaryRef.current = false;
-            // Quick Sim already has result set; lobby flow stashes it via refs
+            // Quick Sim: advance to next match in series
+            if (quickSimMatches.length > 0) {
+              advanceQuickSimMatch();
+              return;
+            }
+            // Lobby flow: stash result from refs
             if (!result && (pendingRef.current || pendingResult)) {
               const res = pendingRef.current || pendingResult;
               if (res) {
